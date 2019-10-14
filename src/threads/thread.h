@@ -104,7 +104,7 @@ struct thread
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
-   Controlled by kernel command-line option "-o mlfqs". */
+   Controlled by kernel command-line option "mlfqs". */
 extern bool thread_mlfqs;
 
 void thread_init (void);
