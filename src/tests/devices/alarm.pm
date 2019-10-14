@@ -22,7 +22,7 @@ sub check_alarm {
 
 	my ($q) = shift (@products);
 	fail "Too many wakeups.\n" if !defined $q;
-	fail "Out of order wakeups ($p vs. $q).\n" if $p != $q; # FIXME
+	fail "Out of order wakeups ($p vs. $q).\n" if $p != $q;
     }
     fail scalar (@products) . " fewer wakeups than expected.\n"
       if @products != 0;
