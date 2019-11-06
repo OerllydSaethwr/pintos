@@ -26,7 +26,7 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
    before process_execute() returns.  Returns the new process's
    thread id, or TID_ERROR if the thread cannot be created. */
 tid_t
-process_execute (const char *file_name) 
+process_execute (const char *file_name)
 {
   char *fn_copy;
   tid_t tid;
@@ -53,6 +53,21 @@ start_process (void *file_name_)
   char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
+
+  /* Tokenizes fn_copy */
+  int cnt = 0;
+  char *token, *save_p;
+  for (token = strtok_r(file_name, " ", &save_p); token != NULL;
+       token = strtok_r(NULL, " ", &save_p)) cnt++;
+
+  /* Creates an array of pointers that each point to the tokenized strings */
+  char *tokenized[cnt + 1];
+  tokenized[cnt] = NULL;
+  save_p = file_name;
+  for (int i = 0; i < cnt; i++) {
+    tokenized[i] = save_p;
+    save_p += strlen(save_p) + 1;
+  }
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
@@ -88,7 +103,7 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  return -1;
+  for(;;);
 }
 
 /* Free the current process's resources. */
