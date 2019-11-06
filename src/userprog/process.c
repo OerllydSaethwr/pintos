@@ -26,7 +26,7 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
    before process_execute() returns.  Returns the new process's
    thread id, or TID_ERROR if the thread cannot be created. */
 tid_t
-process_execute (const char *file_name) 
+process_execute (const char *file_name)
 {
   char *fn_copy;
   tid_t tid;
@@ -54,12 +54,88 @@ start_process (void *file_name_)
   struct intr_frame if_;
   bool success;
 
+  /* Tokenizes fn_copy */
+  int cnt = 0;
+  char *token, *save_p;
+  for (token = strtok_r(file_name, " ", &save_p); token != NULL;
+       token = strtok_r(NULL, " ", &save_p)) cnt++;
+
+  /* Creates an array of pointers that each point to the tokenized strings */
+  char *tokenized[cnt + 1];
+  tokenized[cnt] = NULL;
+  save_p = file_name;
+  for (int i = 0; i < cnt; i++) {
+    tokenized[i] = save_p;
+    save_p += strlen(save_p) + 1;
+  }
+
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
+
+  /* Push arguments to stack */
+  if (success) {
+
+    /* Push arg strings */
+    int tknzd_size = cnt;
+
+    for (--cnt; cnt >= 0; cnt--) {
+      char *curr = tokenized[cnt];
+      if_.esp -= strlen(curr) + sizeof(char);
+      strlcpy(if_.esp, curr, strlen(curr) + 1);
+
+      /* Update our pointers to point to the strings to the stack,
+       * this will make pushing the pointers easier later.
+       * We don't lose the original pointer since file_name keeps
+       * track of it, so we can still free the page */
+      tokenized[cnt] = if_.esp;
+    }
+
+    /* Push 0 separator */
+    if_.esp -= sizeof(void *);
+    *((int *) if_.esp) = 0;
+
+    /* Push pointers to arg strings */
+    for (cnt = tknzd_size - 1; cnt >= 0; cnt--) {
+      if_.esp -= sizeof(char *);
+      *((char **) if_.esp) = tokenized[cnt];
+    }
+
+    /* Push array pointer */
+    char **argv = if_.esp;
+    if_.esp -= sizeof(char **);
+    *((char ***) if_.esp) = argv;
+
+    /* Push argc */
+    if_.esp -= sizeof(int);
+    *((int *) if_.esp) = tknzd_size;
+
+    /* Push fake return address */
+    if_.esp -= sizeof(void *);
+    *((int *) if_.esp) = 0;
+
+    // FIXME: Testing code for printing out the stack, remove later
+    /*
+    printf("%p: %d\n", (if_.esp + 1), *((int *) if_.esp + 1));
+    char ***sp = if_.esp;
+    for (int i = 2; i < 3; ++i) {
+      sp += i;
+      char **val = *(sp);
+      printf("%p: %p\n", sp, val);
+      for (int j = 0; j < 7; ++j) {
+        printf("%s\n", val[j]);
+      }
+      char *string = val[0];
+      for (int k = 0; k < 6; ++k) {
+        printf("%p: %s\n", string, string);
+        string += strlen(string) + 1;
+      }
+      ASSERT(string == PHYS_BASE);
+    }*/
+  }
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
@@ -88,7 +164,7 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  return -1;
+  for(;;);
 }
 
 /* Free the current process's resources. */
@@ -437,7 +513,7 @@ setup_stack (void **esp)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
-        *esp = PHYS_BASE - 12;
+        *esp = PHYS_BASE;
       else
         palloc_free_page (kpage);
     }
