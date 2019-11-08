@@ -6,28 +6,34 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "pagedir.h"
+#include "process.h"
 
 static void syscall_handler (struct intr_frame *);
+
+static int halt(void **);
+static int exit(void **);
+static int exec(void **);
+static int wait(void **);
+static int create(void **);
+static int remove(void **);
+static int open(void **);
+static int filesize(void **);
+static int read(void **);
+static int write(void **);
+static int seek(void **);
+static int tell(void **);
+static int close(void **);
+
+static void check_pointers(void ** argv, int argc);
 static bool valid_pointer(void *);
 
-static int halt(void *, void *, void *);
-static int exit(void *, void *, void *);
-static int exec(void *, void *, void *);
-static int wait(void *, void *, void *);
-static int create(void *, void *, void *);
-static int remove(void *, void *, void *);
-static int open(void *, void *, void *);
-static int filesize(void *, void *, void *);
-static int read(void *, void *, void *);
-static int write(void *, void *, void *);
-static int seek(void *, void *, void *);
-static int tell(void *, void *, void *);
-static int close(void *, void *, void *);
-
 /* Array of function pointers the handler delegates to. */
-static int (*fpa[13]) (void *arg0, void *arg1, void *arg2) = {
+static int (*fpa[13]) (void **argv) = {
     halt, exit, exec, wait, create, remove, open, filesize, read, write, seek, tell, close
 };
+
+/* Argument counts of handler function. */
+static int argument_counts[] = {0, 1, 1, 1, 2, 1, 1, 1, 3, 3, 2, 1, 1};
 
 void
 syscall_init (void) 
@@ -42,65 +48,78 @@ syscall_handler (struct intr_frame *f UNUSED)
    * they will only try to dereference these pointers if the
    * prototype permits. */
   int *sp = f->esp;
-  f->eax = fpa[*sp](sp + 1, sp + 2, sp + 3);
+  printf("%d\n", *(sp - 5));
 
+  /* Creating argument array */
+  void *argv[argument_counts[*sp]];
+  int argc;
+  for (argc = 0; argc < argument_counts[*sp]; argc++) {
+    argv[argc] = sp + argc + 1;
+  }
+
+  /* Checking if pointers are valid */
+  check_pointers(argv, argc);
+
+  /* Delegating to handler */
+  f->eax = fpa[*sp](argv);
 }
 
 /* void halt(void); */
-static int halt(void *_ UNUSED, void *__ UNUSED, void *___ UNUSED) {
+static int halt(void **_ UNUSED) {
   shutdown_power_off();
   NOT_REACHED();
 }
 
 /* int exit(int status); */
-static int exit(void *status_, void *_ UNUSED, void *__ UNUSED) {
-  int status = *(int *) status_;
+static int exit(void **argv) {
+  int status = *(int *) argv[0];
   printf("%d", status);
   thread_exit();
+  //FIXME
 }
 
 /* pid_t exec(const char *cmd_line); */
-static int exec(void *a UNUSED, void *b UNUSED, void *c UNUSED) {
+static int exec(void **argv) {
 
 }
 
 /* int wait(pid_t pid); */
-static int wait(void *a UNUSED, void *b UNUSED, void *c UNUSED) {
+static int wait(void **argv) {
 
 }
 
 /* bool create(const char *file, unsigned initial_size); */
-static int create(void *a UNUSED, void *b UNUSED, void *c UNUSED) {
+static int create(void **argv) {
 
 }
 
 /* bool remove(const char *file); */
-static int remove(void *a UNUSED, void *b UNUSED, void *c UNUSED) {
+static int remove(void **argv) {
 
 }
 
 /* int open(const char *file); */
-static int open(void *a UNUSED, void *b UNUSED, void *c UNUSED) {
+static int open(void **argv) {
 
 }
 
 /* int filesize(int fd); */
-static int filesize(void *a UNUSED, void *b UNUSED, void *c UNUSED) {
+static int filesize(void **argv) {
 
 }
 
 /* int read(int fd, void *buffer, unsigned size); */
-static int read(void *a UNUSED, void *b UNUSED, void *c UNUSED) {
+static int read(void **argv) {
 
 }
 
 /* int write(int fd, void *buffer, unsigned size); */
-static int write(void *fd_, void *buffer_, void *size_) {
-  int fd = *(int *) fd_;
-  const char *buffer = *(const char **) buffer_;
-  unsigned size = *(unsigned *) size_;
+static int write(void **argv) {
+  int fd = *(int *) argv[0];
+  const char *buffer = *(const char **) argv[1];
+  unsigned size = *(unsigned *) argv[2];
 
-  if (fd == 1) {
+  if (fd == STDOUT_FILENO) {
     putbuf(buffer, size);
   }
 
@@ -108,21 +127,31 @@ static int write(void *fd_, void *buffer_, void *size_) {
 }
 
 /* void seek(int fd, unsigend position); */
-static int seek(void *a UNUSED, void *b UNUSED, void *c UNUSED) {
+static int seek(void **argv) {
 
 }
 
 /* unsigned tell(int fd); */
-static int tell(void *a UNUSED, void *b UNUSED, void *c UNUSED) {
+static int tell(void **argv) {
 
 }
 
 /* void close(int fd); */
-static int close(void *a UNUSED, void *b UNUSED, void *c UNUSED) {
+static int close(void **argv) {
 
 }
 
-bool UNUSED valid_pointer(void *pointer UNUSED) {
+static void check_pointers(void **argv, int argc) {
+  for (int i = 0; i < argc; i++) {
+    if (!valid_pointer(argv[i])) {
+      printf("Invalid pointer!\n");
+      process_exit();
+      thread_exit();
+    }
+  }
+}
+
+static bool valid_pointer(void *pointer) {
   return pointer != NULL
                     && is_user_vaddr(pointer)
                     && pagedir_get_page(thread_current()->pagedir, pointer);
