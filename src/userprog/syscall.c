@@ -33,7 +33,7 @@ static int (*fpa[13]) (void **argv) = {
 };
 
 /* Argument counts of handler function. */
-static int argument_counts[] = {0, 1, 1, 1, 2, 1, 1, 1, 3, 3, 2, 1, 1};
+static int argument_counts[] = {ARG_NUM_HALT, ARG_NUM_EXIT, ARG_NUM_EXEC, ARG_NUM_WAIT, ARG_NUM_CREATE, ARG_NUM_REMOVE, ARG_NUM_OPEN, ARG_NUM_FILESIZE, ARG_NUM_READ, ARG_NUM_WRITE, ARG_NUM_SEEK, ARG_NUM_TELL, ARG_NUM_CLOSE};
 
 void
 syscall_init (void) 
