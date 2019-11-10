@@ -8,6 +8,7 @@
 #include "threads/thread.h"
 #include "pagedir.h"
 #include "process.h"
+#define INVALID_OPEN -1
 
 static void syscall_handler (struct intr_frame *);
 
@@ -101,7 +102,19 @@ static int remove(void **argv) {
 
 /* int open(const char *file); */
 static int open(void **argv) {
+    struct file *opened_file = filesys_open(argv[0]);
 
+    if (opened_file != NULL) {
+        struct file_descriptor new;
+        new.descriptor = ++thread_current()->curr_file_descriptor;
+        new.newFile = opened_file;
+
+        list_push_back(&thread_current()->file_descriptors, &new.thread_elem);
+
+        return new.descriptor;
+    }
+
+    return INVALID_OPEN;
 }
 
 /* int filesize(int fd); */
