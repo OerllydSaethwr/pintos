@@ -173,10 +173,10 @@ static int write(void **argv) {
 static int seek(void **argv) {
   int fd = (int) &argv[0];
   unsigned  position = (unsigned) &argv[1];
-  filesystem_access_lock();
+  filesystem_access_lock ();
   struct file *file = file_finder(fd);
-  file_seek(file, position);
-  filesystem_access_unlock();
+  file_seek (file, position);
+  filesystem_access_unlock ();
 //TODO fix return value
 }
 
