@@ -186,7 +186,10 @@ static unsigned tell(void **argv) {
   int fd = (int) &argv[0];
   filesystem_access_lock();
   struct file *file = file_finder(fd);
-  off_t new_position = file_tell(file);
+  unsigned new_position = -1;
+  if (file != NULL) {
+    new_position = file_tell(file);
+  }
   filesystem_access_unlock();
   return  new_position;
 }
