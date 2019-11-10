@@ -175,7 +175,9 @@ static int seek(void **argv) {
   unsigned  position = (unsigned) &argv[1];
   filesystem_access_lock();
   struct file *file = file_finder(fd);
-  file_seek(file, position);
+  if (file != NULL) {
+    file_seek(file, position);
+  }
   filesystem_access_unlock();
   return 0;
 }
