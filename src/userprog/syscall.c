@@ -141,12 +141,12 @@ static int filesize(void **argv) {
   filesystem_access_lock();
 
   /* Go through the list and see if this file descriptor exists. */
-  struct file *file = file_finder (fd);
+  struct file *file = file_finder(fd);
   if (file != NULL) {
-      size_of_file = file_length (file);
+      size_of_file = file_length(file);
   }
 
-  filesystem_access_unlock ();
+  filesystem_access_unlock();
 
   return size_of_file;
 }
