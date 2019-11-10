@@ -141,7 +141,7 @@ static int filesize(void **argv) {
   filesystem_access_lock();
 
   /* Go through the list and see if this file descriptor exists. */
-  struct file *file = file_finder (fd);
+  struct file *file = file_finder(fd);
   if (file != NULL) {
       size_of_file = file_length (file);
   }
@@ -171,7 +171,13 @@ static int write(void **argv) {
 
 /* void seek(int fd, unsigend position); */
 static int seek(void **argv) {
-
+  int fd = (int) &argv[0];
+  unsigned  position = (unsigned) &argv[1];
+  filesystem_access_lock ();
+  struct file *file = file_finder(fd);
+  file_seek (file, position);
+  filesystem_access_unlock ();
+//TODO fix return value
 }
 
 /* unsigned tell(int fd); */
