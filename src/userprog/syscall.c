@@ -3,10 +3,12 @@
 #include <syscall-nr.h>
 #include <threads/vaddr.h>
 #include <devices/shutdown.h>
+#include <filesys/filesys.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "pagedir.h"
 #include "process.h"
+#define INVALID_OPEN -1
 
 static void syscall_handler (struct intr_frame *);
 
@@ -90,17 +92,29 @@ static int wait(void **argv) {
 
 /* bool create(const char *file, unsigned initial_size); */
 static int create(void **argv) {
-
+    return filesys_create(argv[0], *(unsigned *) argv[1]);
 }
 
 /* bool remove(const char *file); */
 static int remove(void **argv) {
-
+    return filesys_remove(argv[0]);
 }
 
 /* int open(const char *file); */
 static int open(void **argv) {
+    struct file *opened_file = filesys_open(argv[0]);
 
+    if (opened_file != NULL) {
+        struct file_descriptor new;
+        new.descriptor = ++thread_current()->curr_file_descriptor;
+        new.newFile = opened_file;
+
+        list_push_back(&thread_current()->file_descriptors, &new.thread_elem);
+
+        return new.descriptor;
+    }
+
+    return INVALID_OPEN;
 }
 
 /* int filesize(int fd); */
@@ -145,7 +159,6 @@ static void check_pointers(void **argv, int argc) {
   for (int i = 0; i < argc; i++) {
     if (!valid_pointer(argv[i])) {
       printf("Invalid pointer!\n");
-      process_exit();
       thread_exit();
     }
   }
