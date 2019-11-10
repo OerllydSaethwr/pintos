@@ -4,6 +4,8 @@
 #include <threads/vaddr.h>
 #include <devices/shutdown.h>
 #include <filesys/filesys.h>
+#include <threads/synch.h>
+#include <filesys/file.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "pagedir.h"
@@ -29,6 +31,8 @@ static int close(void **);
 static void check_pointers(void ** argv, int argc);
 static bool valid_pointer(void *);
 
+struct lock filesystem_lock;
+
 /* Array of function pointers the handler delegates to. */
 static int (*fpa[13]) (void **argv) = {
     halt, exit, exec, wait, create, remove, open, filesize, read, write, seek, tell, close
@@ -37,6 +41,16 @@ static int (*fpa[13]) (void **argv) = {
 /* Argument counts of handler function. */
 static int argument_counts[] = {ARG_NUM_HALT, ARG_NUM_EXIT, ARG_NUM_EXEC, ARG_NUM_WAIT, ARG_NUM_CREATE, ARG_NUM_REMOVE, ARG_NUM_OPEN, ARG_NUM_FILESIZE, ARG_NUM_READ, ARG_NUM_WRITE, ARG_NUM_SEEK, ARG_NUM_TELL, ARG_NUM_CLOSE};
 
+/* Lock filesystem access. Using common lock */
+static void filesystem_access_lock() {
+  lock_acquire(&filesystem_lock);
+}
+
+/* Unlock filesystem access. Using common lock */
+static void filesystem_access_unlock() {
+  lock_release(&filesystem_lock);
+}
+
 void
 syscall_init (void) 
 {
@@ -44,7 +58,7 @@ syscall_init (void)
 }
 
 static void
-syscall_handler (struct intr_frame *f UNUSED) 
+syscall_handler (struct intr_frame *f )
 {
   /* Here we rely on the safety of the syscall handler functions, i.e.
    * they will only try to dereference these pointers if the
@@ -107,7 +121,7 @@ static int open(void **argv) {
     if (opened_file != NULL) {
         struct file_descriptor new;
         new.descriptor = ++thread_current()->curr_file_descriptor;
-        new.newFile = opened_file;
+        new.file = opened_file;
 
         list_push_back(&thread_current()->file_descriptors, &new.thread_elem);
 
@@ -120,6 +134,21 @@ static int open(void **argv) {
 /* int filesize(int fd); */
 static int filesize(void **argv) {
 
+  int fd = (int) &argv[0];
+  /* -1 if file can not be opened*/
+  int size_of_file = -1;
+
+  filesystem_access_lock();
+
+  /* Go through the list and see if this file descriptor exists. */
+  struct file *file = file_finder(fd);
+  if (file != NULL) {
+      size_of_file = file_length(file);
+  }
+
+  filesystem_access_unlock();
+
+  return size_of_file;
 }
 
 /* int read(int fd, void *buffer, unsigned size); */
@@ -169,3 +198,17 @@ static bool valid_pointer(void *pointer) {
                     && is_user_vaddr(pointer)
                     && pagedir_get_page(thread_current()->pagedir, pointer);
 }
+
+struct file *file_finder (int fd) {
+  struct list_elem *elem;
+  for (elem = list_begin (&thread_current()->file_descriptors);
+       elem != list_end (&thread_current()->file_descriptors);
+       elem = list_next (elem)) {
+    /* Return a pointer to file matching file descriptor. */
+    if (list_entry(elem, struct file_descriptor, thread_elem)->descriptor == fd)
+      return list_entry(elem, struct file_descriptor, thread_elem)->file;
+  }
+  return NULL;
+}
+
+
