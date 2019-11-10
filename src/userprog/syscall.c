@@ -8,21 +8,6 @@
 #include "pagedir.h"
 #include "process.h"
 
-#define ARG_NUM_HALT 0
-#define ARG_NUM_EXIT 1
-#define ARG_NUM_EXEC 1
-#define ARG_NUM_WAIT 1
-#define ARG_NUM_CREATE 2
-#define ARG_NUM_REMOVE 1
-#define ARG_NUM_OPEN 1
-#define ARG_NUM_FILESIZE 1
-#define ARG_NUM_READ 3
-#define ARG_NUM_WRITE 3
-#define ARG_NUM_SEEK 2
-#define ARG_NUM_TELL 1
-#define ARG_NUM_CLOSE 1
-
-
 static void syscall_handler (struct intr_frame *);
 
 static int halt(void **);
