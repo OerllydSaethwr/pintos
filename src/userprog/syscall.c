@@ -181,8 +181,13 @@ static int seek(void **argv) {
 }
 
 /* unsigned tell(int fd); */
-static int tell(void **argv) {
-
+static off_t tell(void **argv) {
+  int fd = (int) &argv[0];
+  filesystem_access_lock();
+  struct file *file = file_finder(fd);
+  off_t new_position = file_tell(file);
+  filesystem_access_unlock();
+  return  new_position;
 }
 
 /* void close(int fd); */
