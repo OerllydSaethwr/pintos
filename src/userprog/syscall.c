@@ -3,6 +3,7 @@
 #include <syscall-nr.h>
 #include <threads/vaddr.h>
 #include <devices/shutdown.h>
+#include <filesys/filesys.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "pagedir.h"
@@ -90,12 +91,12 @@ static int wait(void **argv) {
 
 /* bool create(const char *file, unsigned initial_size); */
 static int create(void **argv) {
-
+    return filesys_create(argv[0], *(unsigned *) argv[1]);
 }
 
 /* bool remove(const char *file); */
 static int remove(void **argv) {
-
+    return filesys_remove(argv[0]);
 }
 
 /* int open(const char *file); */
@@ -145,7 +146,6 @@ static void check_pointers(void **argv, int argc) {
   for (int i = 0; i < argc; i++) {
     if (!valid_pointer(argv[i])) {
       printf("Invalid pointer!\n");
-      process_exit();
       thread_exit();
     }
   }
