@@ -15,5 +15,5 @@
 #define ARG_NUM_CLOSE 1
 
 void syscall_init (void);
-
+struct file *file_finder (int fd);
 #endif /* userprog/syscall.h */
