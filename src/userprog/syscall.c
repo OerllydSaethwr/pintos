@@ -8,6 +8,21 @@
 #include "pagedir.h"
 #include "process.h"
 
+#define ARG_NUM_HALT 0
+#define ARG_NUM_EXIT 1
+#define ARG_NUM_EXEC 1
+#define ARG_NUM_WAIT 1
+#define ARG_NUM_CREATE 2
+#define ARG_NUM_REMOVE 1
+#define ARG_NUM_OPEN 1
+#define ARG_NUM_FILESIZE 1
+#define ARG_NUM_READ 3
+#define ARG_NUM_WRITE 3
+#define ARG_NUM_SEEK 2
+#define ARG_NUM_TELL 1
+#define ARG_NUM_CLOSE 1
+
+
 static void syscall_handler (struct intr_frame *);
 
 static int halt(void **);
@@ -33,7 +48,7 @@ static int (*fpa[13]) (void **argv) = {
 };
 
 /* Argument counts of handler function. */
-static int argument_counts[] = {0, 1, 1, 1, 2, 1, 1, 1, 3, 3, 2, 1, 1};
+static int argument_counts[] = {ARG_NUM_HALT, ARG_NUM_EXIT, ARG_NUM_EXEC, ARG_NUM_WAIT, ARG_NUM_CREATE, ARG_NUM_REMOVE, ARG_NUM_OPEN, ARG_NUM_FILESIZE, ARG_NUM_READ, ARG_NUM_WRITE, ARG_NUM_SEEK, ARG_NUM_TELL, ARG_NUM_CLOSE};
 
 void
 syscall_init (void) 
