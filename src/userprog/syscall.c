@@ -6,6 +6,7 @@
 #include <filesys/filesys.h>
 #include <threads/synch.h>
 #include <filesys/file.h>
+#include <devices/input.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "pagedir.h"
@@ -153,8 +154,31 @@ static int filesize(void **argv) {
 
 /* int read(int fd, void *buffer, unsigned size); */
 static int read(void **argv) {
+  int fd = (int) &argv[0];
+  void *buffer = &argv[1];
+  unsigned size = (unsigned) &argv[2];
+  int read_bytes = -1;
 
+
+  if (fd == STDIN_FILENO) {
+    char *input_buffer = (char *) buffer;
+    for (int pos = 0; pos < size; pos++) {
+      input_buffer[pos] = input_getc();
+    }
+    read_bytes = size;
+
+  } else {
+    filesystem_access_lock();
+    struct file *file = file_finder (fd);
+    if (file != NULL) {
+      read_bytes = file_read (file, buffer, size);
+    }
+    filesystem_access_unlock();
+  }
+
+  return read_bytes;
 }
+
 
 /* int write(int fd, void *buffer, unsigned size); */
 static int write(void **argv) {
