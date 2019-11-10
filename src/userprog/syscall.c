@@ -25,7 +25,7 @@ static int filesize(void **);
 static int read(void **);
 static int write(void **);
 static int seek(void **);
-static int tell(void **);
+static unsigned tell(void **);
 static int close(void **);
 
 static void check_pointers(void ** argv, int argc);
@@ -182,7 +182,7 @@ static int seek(void **argv) {
 
 /* unsigned tell(int fd); */
 
-static off_t tell(void **argv) {
+static unsigned tell(void **argv) {
   int fd = (int) &argv[0];
   filesystem_access_lock();
   struct file *file = file_finder(fd);
