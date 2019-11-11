@@ -93,7 +93,7 @@ syscall_handler(struct intr_frame *f) {
 }
 
 /* void halt(void); */
-static void halt(struct intr_frame *_ UNUSED, void **_ UNUSED) {
+static void halt(struct intr_frame *__ UNUSED, void **_ UNUSED) {
   shutdown_power_off();
   NOT_REACHED();
 }
@@ -211,15 +211,20 @@ static void write(struct intr_frame *f, void **argv) {
   int fd = *(int *) argv[0];
   const char *buffer = *(const char **) argv[1];
   unsigned size = *(unsigned *) argv[2];
-
+  int bytes_written = 0;
   if (fd == STDOUT_FILENO) {
     putbuf(buffer, size);
+    bytes_written = size;
   } else {
-    //FIXME
-    //file_write(fd, buffer, size);
+    filesystem_access_lock();
+    struct file_descriptor *file_desc = file_descriptor_finder(fd);
+    if (file_desc != NULL && file_desc->actual_file != NULL) {
+      bytes_written = file_write (file_desc->actual_file, buffer, size);
+    }
+    filesystem_access_unlock();
   }
 
-  f->eax = size;
+  f->eax = bytes_written;
 }
 
 /* void seek(int fd, unsigned position); */
