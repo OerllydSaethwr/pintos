@@ -82,7 +82,6 @@ start_process (void *file_name_)
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  printf("%s\n", file_name);
   success = load (file_name, &if_.eip, &if_.esp);
 
   /* Push arguments to stack */
@@ -173,17 +172,23 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid)
 {
+  struct thread *t = thread_current();
+  struct thread *child_t = find_thread_by_tid(child_tid);
+  if (child_t == NULL || child_t->parent != t) {
+    return INVALID_WAIT;
+  }
+
   while (true) {
-    struct thread *t = thread_current();
     struct list_elem *e;
     for(e = list_begin(&t->dying_parent_sema.waiters); e != list_end(&t->dying_parent_sema.waiters);
         e = list_next(e)) {
       struct thread *dying_child = list_entry(e, struct thread, elem);
-      if (child_tid == dying_child->tid && !dying_child->been_waited_on) {
+      if (child_tid == dying_child->tid) {
+        if (dying_child->been_waited_on) {
+          return INVALID_WAIT;
+        }
         dying_child->been_waited_on = true;
         return dying_child->exit_status;
-      } else if (child_tid == dying_child->tid && dying_child->been_waited_on) {
-        return -1;
       }
     }
     thread_yield();

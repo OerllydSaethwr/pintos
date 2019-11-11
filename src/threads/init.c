@@ -131,8 +131,9 @@ main (void)
   
   /* Run actions specified on kernel command line. */
   run_actions (argv);
-  exit_synch();
+
   /* Finish up. */
+  exit_synch();
   shutdown ();
   thread_exit ();
 }

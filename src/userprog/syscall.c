@@ -100,14 +100,13 @@ static int exit(void **argv) {
 
 /* pid_t exec(const char *cmd_line); */
 static int exec(void **argv) {
-  char *cmd_line = (char *) argv[0];
+  char *cmd_line = *(char **) argv[0];
   return process_execute(cmd_line);
 }
 
 /* int wait(pid_t pid); */
 static int wait(void **argv) {
   tid_t child_tid = *(tid_t *) argv[0];
-  printf("%d\n", child_tid);
   return process_wait(child_tid);
 }
 
@@ -205,7 +204,9 @@ static bool valid_pointer(void *pointer) {
 }
 
 static void kill(void) {
-  printf("%s: exit(%d)\n", thread_current()->name, STATUS_KILLED);
+  struct thread *t = thread_current();
+  t->exit_status = STATUS_KILLED;
+  printf("%s: exit(%d)\n", t->name, t->exit_status);
   thread_exit();
 }
 

@@ -305,7 +305,6 @@ thread_exit (void)
 #ifdef USERPROG
   process_exit ();
   exit_synch();
-  printf("User thread dying\n");
 #endif
 
   /* Remove thread from all threads list, set our status to dying,
@@ -329,6 +328,17 @@ void exit_synch(void) {
 
   for (int i = 0; i < (t == initial_thread ? t->child_cnt - 1 : t->child_cnt); i++)
     sema_down(&t->dying_children_sema);
+}
+
+struct thread *find_thread_by_tid(tid_t tid) {
+  struct list_elem *e;
+  for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e)) {
+    struct thread *t = list_entry(e, struct thread, allelem);
+    if (t->tid == tid) {
+      return t;
+    }
+  }
+  return NULL;
 }
 
 /* Yields the CPU.  The current thread is not put to sleep and

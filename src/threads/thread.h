@@ -147,6 +147,7 @@ const char *thread_name (void);
 
 void thread_exit (void) NO_RETURN;
 void exit_synch(void); /* Used by thread_exit() and init.c before exiting. */
+struct thread *find_thread_by_tid(tid_t);
 void thread_yield (void);
 
 /* Performs some operation on thread t, given auxiliary data AUX. */
