@@ -17,31 +17,31 @@
 
 static void syscall_handler(struct intr_frame *);
 
-static int halt(void **);
+static void halt(struct intr_frame *, void **);
 
-static int exit(void **);
+static void exit(struct intr_frame *, void **);
 
-static int exec(void **);
+static void exec(struct intr_frame *, void **);
 
-static int wait(void **);
+static void wait(struct intr_frame *, void **);
 
-static int create(void **);
+static void create(struct intr_frame *, void **);
 
-static int remove(void **);
+static void remove(struct intr_frame *, void **);
 
-static int open(void **);
+static void open(struct intr_frame *, void **);
 
-static int filesize(void **);
+static void filesize(struct intr_frame *, void **);
 
-static int read(void **);
+static void read(struct intr_frame *, void **);
 
-static int write(void **);
+static void write(struct intr_frame *, void **);
 
-static int seek(void **);
+static void seek(struct intr_frame *, void **);
 
-static unsigned tell(void **);
+static void tell(struct intr_frame *, void **);
 
-static int close(void **);
+static void close(struct intr_frame *, void **);
 
 static bool valid_pointer(void *);
 
@@ -49,11 +49,13 @@ static void kill(void);
 
 static void check_pointer(void *pointer);
 
+static struct file_descriptor * file_descriptor_finder (int fd);
+
 struct lock exec_lock;
 struct lock filesystem_lock;
 
 /* Array of function pointers the handler delegates to. */
-static int (*fpa[13])(void **argv) = {
+static int (*fpa[13])(struct intr_frame * f, void **argv) = {
     halt, exit, exec, wait, create, remove, open, filesize, read, write, seek,
     tell, close
 };
@@ -76,11 +78,10 @@ static void filesystem_access_unlock() {
 }
 
 void
-syscall_init (void) 
-{
+syscall_init(void) {
   lock_init(&exec_lock);
   lock_init(&filesystem_lock);
-  intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
+  intr_register_int(0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
 static void
@@ -102,17 +103,17 @@ syscall_handler(struct intr_frame *f) {
   }
 
   /* Delegating to handler */
-  f->eax = fpa[*sp](argv);
+  fpa[*sp](f, argv);
 }
 
 /* void halt(void); */
-static int halt(void **_ UNUSED) {
+static void halt(struct intr_frame *_ UNUSED, void **_ UNUSED) {
   shutdown_power_off();
   NOT_REACHED();
 }
 
 /* int exit(int status); */
-static int exit(void **argv) {
+static void exit(struct intr_frame *_ UNUSED, void **argv) {
   int status = *(int *) argv[0];
   int *eax = (int *) argv[1];
   *eax = status;
@@ -123,55 +124,55 @@ static int exit(void **argv) {
 }
 
 /* pid_t exec(const char *cmd_line); */
-static int exec(void **argv) {
+static void exec(struct intr_frame *f, void **argv) {
   check_pointer(*(const char **) argv[0]);
   char *cmd_line = *(char **) argv[0];
   lock_acquire(&exec_lock);
   tid_t pid = process_execute(cmd_line);
   lock_release(&exec_lock);
-  return pid;
+  f->eax = pid;
 }
 
 /* int wait(pid_t pid); */
-static int wait(void **argv) {
+static void wait(struct intr_frame *f, void **argv) {
   tid_t child_tid = *(tid_t *) argv[0];
-  return process_wait(child_tid);
+  f->eax = process_wait(child_tid);
 }
 
 /* bool create(const char *file, unsigned initial_size); */
-static int create(void **argv) {
+static void create(struct intr_frame *f, void **argv) {
   check_pointer(*(const char **) argv[0]);
-  return filesys_create(*(const char **) argv[0], *(unsigned *) argv[1]);
+  f->eax = filesys_create(*(const char **) argv[0], *(unsigned *) argv[1]);
 }
 
 /* bool remove(const char *file); */
-static int remove(void **argv) {
+static void remove(struct intr_frame *f, void **argv) {
   check_pointer(*(const char **) argv[0]);
-  return filesys_remove(*(const char **) argv[0]);
+  f->eax = filesys_remove(*(const char **) argv[0]);
 }
 
 /* int open(const char *file); */
-static int open(void **argv) {
+static void open(struct intr_frame *f, void **argv) {
   check_pointer(*(const char **) argv[0]);
   filesystem_access_lock();
   struct file *opened_file = filesys_open(*(const char **) argv[0]);
 
   if (opened_file != NULL) {
-    struct file_descriptor* new = malloc(sizeof(struct file_descriptor));
+    struct file_descriptor *new = malloc(sizeof(struct file_descriptor));
     new->descriptor = ++(thread_current()->curr_file_descriptor);
     new->actual_file = opened_file;
 
     list_push_back(&thread_current()->file_descriptors, &new->thread_elem);
-    filesystem_access_unlock();
-    return new->descriptor;
+    f->eax = new->descriptor;
+  } else {
+    f->eax = INVALID_OPEN;
   }
-  filesystem_access_unlock();
 
-  return INVALID_OPEN;
+  filesystem_access_unlock();
 }
 
 /* int filesize(int fd); */
-static int filesize(void **argv) {
+static void filesize(struct intr_frame *f, void **argv) {
   int fd = *(int *) argv[0];
   /* -1 if file can not be opened*/
   int size_of_file = -1;
@@ -186,11 +187,11 @@ static int filesize(void **argv) {
 
   filesystem_access_unlock();
 
-  return size_of_file;
+  f->eax = size_of_file;
 }
 
 /* int read(int fd, void *buffer, unsigned size); */
-static int read(void **argv) {
+static void read(struct intr_frame *f, void **argv) {
   check_pointer(*(void **) argv[1]);
   int fd = *(int *) argv[0];
   void *buffer = *(void **) argv[1];
@@ -214,12 +215,12 @@ static int read(void **argv) {
     filesystem_access_unlock();
   }
 
-  return read_bytes;
+  f->eax = read_bytes;
 }
 
 
 /* int write(int fd, void *buffer, unsigned size); */
-static int write(void **argv) {
+static void write(struct intr_frame *f, void **argv) {
   check_pointer(*(void **) argv[1]);
   int fd = *(int *) argv[0];
   const char *buffer = *(const char **) argv[1];
@@ -232,11 +233,11 @@ static int write(void **argv) {
     //file_write(fd, buffer, size);
   }
 
-  return size;
+  f->eax = size;
 }
 
 /* void seek(int fd, unsigned position); */
-static int seek(void **argv) {
+static void seek(struct intr_frame *_ UNUSED, void **argv) {
   int fd = *(int *) argv[0];
   unsigned position = (unsigned) &argv[1];
   filesystem_access_lock();
@@ -245,12 +246,10 @@ static int seek(void **argv) {
     file_seek(file_desc->actual_file, position);
   }
   filesystem_access_unlock();
-  return 0;
 }
 
 /* unsigned tell(int fd); */
-
-static unsigned tell(void **argv) {
+static void tell(struct intr_frame *f, void **argv) {
   int fd = *(int *) argv[0];
   filesystem_access_lock();
   struct file_descriptor *file_desc = file_descriptor_finder(fd);
@@ -259,11 +258,11 @@ static unsigned tell(void **argv) {
     new_position = file_tell(file_desc->actual_file);
   }
   filesystem_access_unlock();
-  return new_position;
+  f->eax = new_position;
 }
 
 /* void close(int fd); */
-static int close(void **argv) {
+static void close(struct intr_frame *_ UNUSED, void **argv) {
   int fd = *(int *) argv[0];
   filesystem_access_lock();
   struct file_descriptor *file_desc = file_descriptor_finder(fd);
@@ -275,7 +274,6 @@ static int close(void **argv) {
     free(file_desc);
   }
   filesystem_access_unlock();
-  return 0;
 }
 
 static void check_pointer(void *pointer) {
@@ -297,12 +295,13 @@ static void kill(void) {
   thread_exit();
 }
 
-struct file_descriptor * file_descriptor_finder(int fd) {
+static struct file_descriptor *file_descriptor_finder(int fd) {
   struct list_elem *elem;
   for (elem = list_begin(&thread_current()->file_descriptors);
        elem != list_end(&thread_current()->file_descriptors);
        elem = list_next(elem)) {
-    struct file_descriptor* desc = list_entry(elem, struct file_descriptor, thread_elem);
+    struct file_descriptor *desc = list_entry(elem, struct file_descriptor,
+                                              thread_elem);
     /* Return a pointer to file matching file descriptor. */
     if (desc->descriptor == fd) {
       return desc;
