@@ -23,3 +23,8 @@
 *.nav
 *.toc
 
+.DS_Store
+src/utils/mac_gcc/
+cmake-build-debug/
+CMakeLists.txt
+.idea/

@@ -104,11 +104,24 @@ struct thread
     bool been_waited_on;
     int exit_status;
     int child_cnt;
+    struct list file_descriptors;       /* File descriptors held by process */
+    int curr_file_descriptor;           /* Current number of descriptors */
+
 #endif
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
   };
+
+#ifdef USERPROG
+/* file Descriptor */
+struct file_descriptor
+{
+    struct file *file;          /* New file created in thread */
+    struct list_elem thread_elem;  /* List elem to assign to thread */
+    int descriptor;                /* Number associating to file*/
+};
+#endif
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.

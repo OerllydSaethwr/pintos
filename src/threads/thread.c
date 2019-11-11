@@ -502,6 +502,10 @@ init_thread (struct thread *t, const char *name, int priority)
   t->been_waited_on = false;
   t->magic = THREAD_MAGIC;
 
+#ifdef USERPROG
+    t->curr_file_descriptor = 1;
+#endif
+
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
