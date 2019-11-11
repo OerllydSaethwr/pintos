@@ -14,6 +14,8 @@
 #define ARG_NUM_TELL 1
 #define ARG_NUM_CLOSE 1
 
+#define STATUS_KILLED -1
+
 void syscall_init (void);
 struct file *file_finder (int fd);
 #endif /* userprog/syscall.h */
