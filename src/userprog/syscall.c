@@ -230,7 +230,7 @@ static void write(struct intr_frame *f, void **argv) {
 /* void seek(int fd, unsigned position); */
 static void seek(struct intr_frame *_ UNUSED, void **argv) {
   int fd = *(int *) argv[0];
-  unsigned position = (unsigned) &argv[1];
+  off_t position = *(off_t *) argv[1];
   filesystem_access_lock();
   struct file_descriptor *file_desc = file_descriptor_finder(fd);
   if (file_desc != NULL && file_desc->actual_file != NULL) {

@@ -337,8 +337,10 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
-  if (t->pagedir == NULL) 
+  if (t->pagedir == NULL) {
     goto done;
+  }
+
   process_activate ();
 
   /* Open executable file. */
@@ -348,6 +350,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
       printf ("load: %s: open failed\n", file_name);
       goto done; 
     }
+  file_deny_write(file);
 
   t->executable = file;
   /* Read and verify executable header. */
@@ -430,8 +433,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
   *eip = (void (*) (void)) ehdr.e_entry;
 
   success = true;
-
-  file_deny_write(file);
 
  done:
   /* We arrive here whether the load is successful or not. */
