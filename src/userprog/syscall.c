@@ -29,8 +29,9 @@ static int seek(void **);
 static int tell(void **);
 static int close(void **);
 
-static void check_pointers(void ** argv, int argc);
 static bool valid_pointer(void *);
+static void kill(void);
+static void check_pointer(void *pointer);
 
 struct lock filesystem_lock;
 
@@ -61,21 +62,21 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f )
 {
-  /* Here we rely on the safety of the syscall handler functions, i.e.
-   * they will only try to dereference these pointers if the
-   * prototype permits. */
   int *sp = f->esp;
-  printf("%d\n", *(sp - 5));
+  check_pointer(sp);
 
   /* Creating argument array */
-  void *argv[argument_counts[*sp]];
-  int argc;
-  for (argc = 0; argc < argument_counts[*sp]; argc++) {
-    argv[argc] = sp + argc + 1;
+  int argc = argument_counts[*sp];
+  void *argv[argc + 1];
+  for (int i = 0; i < argc; i++) {
+    argv[i] = sp + i + 1;
   }
+  argv[argc] = &f->eax;
 
   /* Checking if pointers are valid */
-  check_pointers(argv, argc);
+  for (int i = 0; i < argc; ++i) {
+    check_pointer(argv[i]);
+  }
 
   /* Delegating to handler */
   f->eax = fpa[*sp](argv);
@@ -90,19 +91,24 @@ static int halt(void **_ UNUSED) {
 /* int exit(int status); */
 static int exit(void **argv) {
   int status = *(int *) argv[0];
-  printf("%d", status);
+  int *eax = (int *) argv[1];
+  *eax = status;
+  struct thread *t = thread_current();
+  t->exit_status = status;
+  printf("%s: exit(%d)\n", t->name, status);
   thread_exit();
-  //FIXME
 }
 
 /* pid_t exec(const char *cmd_line); */
 static int exec(void **argv) {
-
+  char *cmd_line = *(char **) argv[0];
+  return process_execute(cmd_line);
 }
 
 /* int wait(pid_t pid); */
 static int wait(void **argv) {
-
+  tid_t child_tid = *(tid_t *) argv[0];
+  return process_wait(child_tid);
 }
 
 /* bool create(const char *file, unsigned initial_size); */
@@ -134,7 +140,6 @@ static int open(void **argv) {
 
 /* int filesize(int fd); */
 static int filesize(void **argv) {
-
   int fd = (int) &argv[0];
   /* -1 if file can not be opened*/
   int size_of_file = -1;
@@ -188,39 +193,45 @@ static int write(void **argv) {
 
   if (fd == STDOUT_FILENO) {
     putbuf(buffer, size);
+  } else {
+    //FIXME
+    //file_write(fd, buffer, size);
   }
 
-  //FIXME return;
+  return size;
 }
 
 /* void seek(int fd, unsigend position); */
 static int seek(void **argv) {
-
+  kill();
 }
 
 /* unsigned tell(int fd); */
 static int tell(void **argv) {
-
+  kill();
 }
 
 /* void close(int fd); */
 static int close(void **argv) {
-
+  kill();
 }
 
-static void check_pointers(void **argv, int argc) {
-  for (int i = 0; i < argc; i++) {
-    if (!valid_pointer(argv[i])) {
-      printf("Invalid pointer!\n");
-      thread_exit();
-    }
-  }
+static void check_pointer(void *pointer) {
+  if (!valid_pointer(pointer))
+    kill();
 }
 
 static bool valid_pointer(void *pointer) {
   return pointer != NULL
                     && is_user_vaddr(pointer)
                     && pagedir_get_page(thread_current()->pagedir, pointer);
+}
+
+static void kill(void) {
+  struct thread *t = thread_current();
+  t->exit_status = STATUS_KILLED;
+  printf("%s: exit(%d)\n", t->name, t->exit_status);
+  thread_exit();
 }
 
 struct file *file_finder (int fd) {
@@ -234,5 +245,3 @@ struct file *file_finder (int fd) {
   }
   return NULL;
 }
-
-

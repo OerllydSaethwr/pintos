@@ -187,6 +187,9 @@ thread_create (const char *name, int priority,
   if (t == NULL)
     return TID_ERROR;
 
+  /* Increase the counter of children spawned, will play a role in thread_exit() */
+  thread_current()->child_cnt++;
+
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
@@ -210,6 +213,8 @@ thread_create (const char *name, int priority,
   sf = alloc_frame (t, sizeof *sf);
   sf->eip = switch_entry;
   sf->ebp = 0;
+
+  t->parent = thread_current();
 
   intr_set_level (old_level);
 
@@ -299,16 +304,41 @@ thread_exit (void)
 
 #ifdef USERPROG
   process_exit ();
+  exit_synch();
 #endif
 
   /* Remove thread from all threads list, set our status to dying,
      and schedule another process.  That process will destroy us
      when it calls thread_schedule_tail(). */
   intr_disable ();
+  sema_up(&thread_current()->parent->dying_children_sema);
   list_remove (&thread_current()->allelem);
   thread_current ()->status = THREAD_DYING;
   schedule ();
   NOT_REACHED ();
+}
+
+void exit_synch(void) {
+  struct thread *t = thread_current();
+  for (int i = 0; i < t->child_cnt; i++)
+    sema_up(&t->dying_parent_sema);
+
+  if (t != initial_thread)
+    sema_down(&t->parent->dying_parent_sema);
+
+  for (int i = 0; i < (t == initial_thread ? t->child_cnt - 1 : t->child_cnt); i++)
+    sema_down(&t->dying_children_sema);
+}
+
+struct thread *find_thread_by_tid(tid_t tid) {
+  struct list_elem *e;
+  for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e)) {
+    struct thread *t = list_entry(e, struct thread, allelem);
+    if (t->tid == tid) {
+      return t;
+    }
+  }
+  return NULL;
 }
 
 /* Yields the CPU.  The current thread is not put to sleep and
@@ -477,6 +507,9 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+  sema_init(&t->dying_parent_sema, 0);
+  sema_init(&t->dying_children_sema, 0);
+  t->been_waited_on = false;
   t->magic = THREAD_MAGIC;
 
 #ifdef USERPROG
