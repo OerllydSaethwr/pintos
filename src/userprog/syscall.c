@@ -213,7 +213,14 @@ static int tell(void **argv) {
 
 /* void close(int fd); */
 static int close(void **argv) {
-  kill();
+  int fd = (int) &argv[0];
+  filesystem_access_lock ();
+  struct file *file = file_finder(fd);
+  if (file != NULL) {
+    file_close (file);
+  }
+  filesystem_access_unlock ();
+  return 0;
 }
 
 static void check_pointer(void *pointer) {
