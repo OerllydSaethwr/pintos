@@ -120,7 +120,7 @@ struct thread
 /* file Descriptor */
 struct file_descriptor
 {
-    struct file *file;          /* New file created in thread */
+    struct file *actual_file;      /* New file created in thread */
     struct list_elem thread_elem;  /* List elem to assign to thread */
     int descriptor;                /* Number associating to file*/
 };

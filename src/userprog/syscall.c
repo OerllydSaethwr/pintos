@@ -9,6 +9,7 @@
 #include <devices/input.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "threads/malloc.h"
 #include "pagedir.h"
 #include "process.h"
 
@@ -156,13 +157,13 @@ static int open(void **argv) {
   struct file *opened_file = filesys_open(*(const char **) argv[0]);
 
   if (opened_file != NULL) {
-    struct file_descriptor new;
-    new.descriptor = ++(thread_current()->curr_file_descriptor);
-    new.file = opened_file;
+    struct file_descriptor* new = malloc(sizeof(struct file_descriptor));
+    new->descriptor = ++(thread_current()->curr_file_descriptor);
+    new->actual_file = opened_file;
 
-    list_push_back(&thread_current()->file_descriptors, &new.thread_elem);
+    list_push_back(&thread_current()->file_descriptors, &new->thread_elem);
     filesystem_access_unlock();
-    return new.descriptor;
+    return new->descriptor;
   }
   filesystem_access_unlock();
 
@@ -178,9 +179,9 @@ static int filesize(void **argv) {
   filesystem_access_lock();
 
   /* Go through the list and see if this file descriptor exists. */
-  struct file *file = file_finder(fd);
-  if (file != NULL) {
-    size_of_file = file_length(file);
+  struct file_descriptor *file_desc = file_descriptor_finder(fd);
+  if (file_desc != NULL && file_desc->actual_file != NULL) {
+    size_of_file = file_length(file_desc->actual_file);
   }
 
   filesystem_access_unlock();
@@ -206,9 +207,9 @@ static int read(void **argv) {
 
   } else {
     filesystem_access_lock();
-    struct file *file = file_finder(fd);
-    if (file != NULL) {
-      read_bytes = file_read(file, buffer, size);
+    struct file_descriptor *file_desc = file_descriptor_finder(fd);
+    if (file_desc != NULL && file_desc->actual_file != NULL) {
+      read_bytes = file_read(file_desc->actual_file, buffer, size);
     }
     filesystem_access_unlock();
   }
@@ -239,8 +240,10 @@ static int seek(void **argv) {
   int fd = *(int *) argv[0];
   unsigned position = (unsigned) &argv[1];
   filesystem_access_lock();
-  struct file *file = file_finder(fd);
-  file_seek(file, position);
+  struct file_descriptor *file_desc = file_descriptor_finder(fd);
+  if (file_desc != NULL && file_desc->actual_file != NULL) {
+    file_seek(file_desc->actual_file, position);
+  }
   filesystem_access_unlock();
   return 0;
 }
@@ -250,10 +253,10 @@ static int seek(void **argv) {
 static unsigned tell(void **argv) {
   int fd = *(int *) argv[0];
   filesystem_access_lock();
-  struct file *file = file_finder(fd);
+  struct file_descriptor *file_desc = file_descriptor_finder(fd);
   unsigned new_position = -1;
-  if (file != NULL) {
-    new_position = file_tell(file);
+  if (file_desc != NULL && file_desc->actual_file != NULL) {
+    new_position = file_tell(file_desc->actual_file);
   }
   filesystem_access_unlock();
   return new_position;
@@ -263,9 +266,13 @@ static unsigned tell(void **argv) {
 static int close(void **argv) {
   int fd = *(int *) argv[0];
   filesystem_access_lock();
-  struct file *file = file_finder(fd);
-  if (file != NULL) {
-    file_close(file);
+  struct file_descriptor *file_desc = file_descriptor_finder(fd);
+  if (file_desc != NULL) {
+    if (file_desc->actual_file != NULL) {
+      file_close(file_desc->actual_file);
+    }
+    list_remove(&file_desc->thread_elem);
+    free(file_desc);
   }
   filesystem_access_unlock();
   return 0;
@@ -290,18 +297,15 @@ static void kill(void) {
   thread_exit();
 }
 
-struct file *file_finder(int fd) {
+struct file_descriptor * file_descriptor_finder(int fd) {
   struct list_elem *elem;
-  int i = 0;
   for (elem = list_begin(&thread_current()->file_descriptors);
        elem != list_end(&thread_current()->file_descriptors);
        elem = list_next(elem)) {
-    int dic = list_entry(elem, struct file_descriptor, thread_elem)->descriptor;
-    printf("inside loop %i fd: %i\n", i, dic);
-    i++;
+    struct file_descriptor* desc = list_entry(elem, struct file_descriptor, thread_elem);
     /* Return a pointer to file matching file descriptor. */
-    if (dic== fd) {
-      return list_entry(elem, struct file_descriptor, thread_elem)->file;
+    if (desc->descriptor == fd) {
+      return desc;
     }
   }
   return NULL;

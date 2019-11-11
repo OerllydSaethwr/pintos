@@ -17,5 +17,5 @@
 #define STATUS_KILLED -1
 
 void syscall_init (void);
-struct file *file_finder (int fd);
+struct file_descriptor * file_descriptor_finder (int fd);
 #endif /* userprog/syscall.h */
