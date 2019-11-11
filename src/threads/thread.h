@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "synch.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -96,8 +97,16 @@ struct thread
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
+
+    struct thread *parent;
+    struct semaphore dying_parent_sema;
+    struct semaphore dying_children_sema;
+    bool been_waited_on;
+    int exit_status;
+    int child_cnt;
     struct list file_descriptors;       /* File descriptors held by process */
     int curr_file_descriptor;           /* Current number of descriptors */
+
 #endif
 
     /* Owned by thread.c. */
@@ -137,6 +146,8 @@ tid_t thread_tid (void);
 const char *thread_name (void);
 
 void thread_exit (void) NO_RETURN;
+void exit_synch(void); /* Used by thread_exit() and init.c before exiting. */
+struct thread *find_thread_by_tid(tid_t);
 void thread_yield (void);
 
 /* Performs some operation on thread t, given auxiliary data AUX. */
