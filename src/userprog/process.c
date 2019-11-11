@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <threads/synch.h>
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
 #include "userprog/tss.h"
@@ -38,10 +39,17 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
+  char process_name[16];
+  strlcpy(process_name, file_name, 16);
+
+  char *save_dummy;
+  strtok_r(process_name, " ", &save_dummy);
+
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (process_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
-    palloc_free_page (fn_copy); 
+    palloc_free_page (fn_copy);
+
   return tid;
 }
 
@@ -74,6 +82,7 @@ start_process (void *file_name_)
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
+  printf("%s\n", file_name);
   success = load (file_name, &if_.eip, &if_.esp);
 
   /* Push arguments to stack */
@@ -162,9 +171,23 @@ start_process (void *file_name_)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-process_wait (tid_t child_tid UNUSED) 
+process_wait (tid_t child_tid)
 {
-  for(;;);
+  while (true) {
+    struct thread *t = thread_current();
+    struct list_elem *e;
+    for(e = list_begin(&t->dying_parent_sema.waiters); e != list_end(&t->dying_parent_sema.waiters);
+        e = list_next(e)) {
+      struct thread *dying_child = list_entry(e, struct thread, elem);
+      if (child_tid == dying_child->tid && !dying_child->been_waited_on) {
+        dying_child->been_waited_on = true;
+        return dying_child->exit_status;
+      } else if (child_tid == dying_child->tid && dying_child->been_waited_on) {
+        return -1;
+      }
+    }
+    thread_yield();
+  }
 }
 
 /* Free the current process's resources. */
