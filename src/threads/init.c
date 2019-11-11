@@ -133,6 +133,7 @@ main (void)
   run_actions (argv);
 
   /* Finish up. */
+  exit_synch();
   shutdown ();
   thread_exit ();
 }
