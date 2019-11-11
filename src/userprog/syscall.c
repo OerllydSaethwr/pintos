@@ -26,7 +26,7 @@ static int filesize(void **);
 static int read(void **);
 static int write(void **);
 static int seek(void **);
-static int tell(void **);
+static unsigned tell(void **);
 static int close(void **);
 
 static bool valid_pointer(void *);
@@ -207,16 +207,23 @@ static int seek(void **argv) {
   unsigned  position = (unsigned) &argv[1];
   filesystem_access_lock();
   struct file *file = file_finder(fd);
-  if (file != NULL) {
-    file_seek(file, position);
-  }
+  file_seek(file, position);
   filesystem_access_unlock();
-  return 0;
+//TODO fix return value
 }
 
 /* unsigned tell(int fd); */
-static int tell(void **argv) {
-  kill();
+
+static unsigned tell(void **argv) {
+  int fd = (int) &argv[0];
+  filesystem_access_lock();
+  struct file *file = file_finder(fd);
+  unsigned new_position = -1;
+  if (file != NULL) {
+    new_position = file_tell(file);
+  }
+  filesystem_access_unlock();
+  return  new_position;
 }
 
 /* void close(int fd); */
