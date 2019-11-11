@@ -203,7 +203,15 @@ static int write(void **argv) {
 
 /* void seek(int fd, unsigend position); */
 static int seek(void **argv) {
-  kill();
+  int fd = (int) &argv[0];
+  unsigned  position = (unsigned) &argv[1];
+  filesystem_access_lock();
+  struct file *file = file_finder(fd);
+  if (file != NULL) {
+    file_seek(file, position);
+  }
+  filesystem_access_unlock();
+  return 0;
 }
 
 /* unsigned tell(int fd); */
