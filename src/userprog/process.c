@@ -29,6 +29,7 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
 tid_t
 process_execute (const char *file_name)
 {
+
   char *fn_copy;
   tid_t tid;
 
@@ -46,10 +47,19 @@ process_execute (const char *file_name)
   strtok_r(process_name, " ", &save_dummy);
 
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (process_name, PRI_DEFAULT, start_process, fn_copy);
-  if (tid == TID_ERROR)
-    palloc_free_page (fn_copy);
 
+  tid = thread_create (process_name, PRI_DEFAULT, start_process, fn_copy);
+  if (tid == TID_ERROR) {
+    palloc_free_page(fn_copy);
+    return tid;
+  }
+
+  struct thread *t = find_thread_by_tid(tid);
+  sema_down(&t->process_load);
+
+  if (t->process_fail_loaded) {
+    return TID_ERROR;
+  }
   return tid;
 }
 
@@ -82,7 +92,10 @@ start_process (void *file_name_)
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
+
   success = load (file_name, &if_.eip, &if_.esp);
+  thread_current()->process_fail_loaded = !success;
+  sema_up(&thread_current()->process_load);
 
   /* Push arguments to stack */
   if (success) {
@@ -125,6 +138,7 @@ start_process (void *file_name_)
     if_.esp -= sizeof(void *);
     *((int *) if_.esp) = 0;
 
+
     // FIXME: Testing code for printing out the stack, remove later
     /*
     printf("%p: %d\n", (if_.esp + 1), *((int *) if_.esp + 1));
@@ -147,8 +161,9 @@ start_process (void *file_name_)
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
-  if (!success) 
-    thread_exit ();
+  if (!success) {
+    thread_exit();
+  }
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in

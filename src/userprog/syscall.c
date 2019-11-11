@@ -33,6 +33,7 @@ static bool valid_pointer(void *);
 static void kill(void);
 static void check_pointer(void *pointer);
 
+struct lock exec_lock;
 struct lock filesystem_lock;
 
 /* Array of function pointers the handler delegates to. */
@@ -56,6 +57,8 @@ static void filesystem_access_unlock() {
 void
 syscall_init (void) 
 {
+  lock_init(&exec_lock);
+  lock_init(&filesystem_lock);
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
@@ -102,7 +105,10 @@ static int exit(void **argv) {
 /* pid_t exec(const char *cmd_line); */
 static int exec(void **argv) {
   char *cmd_line = *(char **) argv[0];
-  return process_execute(cmd_line);
+  lock_acquire(&exec_lock);
+  tid_t pid = process_execute(cmd_line);
+  lock_release(&exec_lock);
+  return pid;
 }
 
 /* int wait(pid_t pid); */
@@ -239,8 +245,9 @@ static int close(void **argv) {
 }
 
 static void check_pointer(void *pointer) {
-  if (!valid_pointer(pointer))
+  if (!valid_pointer(pointer)) {
     kill();
+  }
 }
 
 static bool valid_pointer(void *pointer) {

@@ -107,6 +107,9 @@ struct thread
     struct list file_descriptors;       /* File descriptors held by process */
     int curr_file_descriptor;           /* Current number of descriptors */
 
+    struct semaphore process_load;
+    bool process_fail_loaded;
+
 #endif
 
     /* Owned by thread.c. */

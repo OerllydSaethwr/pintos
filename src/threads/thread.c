@@ -514,6 +514,8 @@ init_thread (struct thread *t, const char *name, int priority)
 
 #ifdef USERPROG
     t->curr_file_descriptor = 1;
+    sema_init(&t->process_load, 0);
+    t->process_fail_loaded = false;
 #endif
 
   old_level = intr_disable ();
