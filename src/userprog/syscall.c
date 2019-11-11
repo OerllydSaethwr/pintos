@@ -101,7 +101,8 @@ static int exit(void **argv) {
 
 /* pid_t exec(const char *cmd_line); */
 static int exec(void **argv) {
-  char *cmd_line = *(char **) argv[0];
+    check_pointer(*(const char**) argv[0]);
+    char *cmd_line = *(char **) argv[0];
   return process_execute(cmd_line);
 }
 
@@ -159,7 +160,8 @@ static int filesize(void **argv) {
 
 /* int read(int fd, void *buffer, unsigned size); */
 static int read(void **argv) {
-  int fd = (int) &argv[0];
+    check_pointer(*(void **) argv[1]);
+    int fd = (int) &argv[0];
   void *buffer = &argv[1];
   unsigned size = (unsigned) &argv[2];
   int read_bytes = -1;
@@ -187,7 +189,8 @@ static int read(void **argv) {
 
 /* int write(int fd, void *buffer, unsigned size); */
 static int write(void **argv) {
-  int fd = *(int *) argv[0];
+    check_pointer(*(void**) argv[1]);
+    int fd = *(int *) argv[0];
   const char *buffer = *(const char **) argv[1];
   unsigned size = *(unsigned *) argv[2];
 
