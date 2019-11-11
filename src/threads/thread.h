@@ -110,6 +110,8 @@ struct thread
     struct semaphore process_load;
     bool process_fail_loaded;
 
+    struct file *executable;
+
 #endif
 
     /* Owned by thread.c. */
