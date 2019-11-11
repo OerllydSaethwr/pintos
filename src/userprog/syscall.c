@@ -18,35 +18,21 @@
 static void syscall_handler(struct intr_frame *);
 
 static void halt(struct intr_frame *, void **);
-
 static void exit(struct intr_frame *, void **);
-
 static void exec(struct intr_frame *, void **);
-
 static void wait(struct intr_frame *, void **);
-
 static void create(struct intr_frame *, void **);
-
 static void remove(struct intr_frame *, void **);
-
 static void open(struct intr_frame *, void **);
-
 static void filesize(struct intr_frame *, void **);
-
 static void read(struct intr_frame *, void **);
-
 static void write(struct intr_frame *, void **);
-
 static void seek(struct intr_frame *, void **);
-
 static void tell(struct intr_frame *, void **);
-
 static void close(struct intr_frame *, void **);
 
 static bool valid_pointer(void *);
-
 static void kill(void);
-
 static void check_pointer(void *pointer);
 
 static struct file_descriptor * file_descriptor_finder (int fd);
@@ -55,7 +41,7 @@ struct lock exec_lock;
 struct lock filesystem_lock;
 
 /* Array of function pointers the handler delegates to. */
-static int (*fpa[13])(struct intr_frame * f, void **argv) = {
+static void (*fpa[13])(struct intr_frame *f, void **argv) = {
     halt, exit, exec, wait, create, remove, open, filesize, read, write, seek,
     tell, close
 };
