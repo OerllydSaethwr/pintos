@@ -32,7 +32,6 @@ static void tell(struct intr_frame *, void **);
 static void close(struct intr_frame *, void **);
 
 static bool valid_pointer(void *);
-static void kill(void);
 static void check_pointer(void *pointer);
 
 static struct file_descriptor * file_descriptor_finder (int fd);
@@ -269,7 +268,7 @@ static void close(struct intr_frame *_ UNUSED, void **argv) {
 
 static void check_pointer(void *pointer) {
   if (!valid_pointer(pointer)) {
-    kill();
+    kill_process();
   }
 }
 
@@ -279,7 +278,7 @@ static bool valid_pointer(void *pointer) {
          && pagedir_get_page(thread_current()->pagedir, pointer);
 }
 
-static void kill(void) {
+void kill_process(void) {
   struct thread *t = thread_current();
   t->exit_status = STATUS_KILLED;
   printf("%s: exit(%d)\n", t->name, t->exit_status);
