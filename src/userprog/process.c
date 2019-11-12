@@ -224,7 +224,9 @@ process_exit (void)
   uint32_t *pd;
 
   while (!list_empty(&cur->file_descriptors)) {
-    free(list_entry(list_pop_front(&cur->file_descriptors), struct file_descriptor, thread_elem));
+    struct file_descriptor *fd = list_entry(list_pop_front(&cur->file_descriptors), struct file_descriptor, thread_elem);
+    file_close(fd->actual_file);
+    free(fd);
   }
 
 
