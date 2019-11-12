@@ -17,4 +17,5 @@
 #define STATUS_KILLED -1
 
 void syscall_init (void);
+void kill_process(void);
 #endif /* userprog/syscall.h */

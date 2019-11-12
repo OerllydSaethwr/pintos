@@ -32,10 +32,12 @@ static void tell(struct intr_frame *, void **);
 static void close(struct intr_frame *, void **);
 
 static bool valid_pointer(void *);
-static void kill(void);
 static void check_pointer(void *pointer);
 
-static struct file_descriptor * file_descriptor_finder (int fd);
+static void filesystem_access_lock(void);
+static void filesystem_access_unlock(void);
+
+static struct file_descriptor *file_descriptor_finder (int fd);
 
 struct lock exec_lock;
 struct lock filesystem_lock;
@@ -111,7 +113,7 @@ static void exit(struct intr_frame *_ UNUSED, void **argv) {
 
 /* pid_t exec(const char *cmd_line); */
 static void exec(struct intr_frame *f, void **argv) {
-  check_pointer(*(const char **) argv[0]);
+  check_pointer((void *) *(const char **) argv[0]);
   char *cmd_line = *(char **) argv[0];
   lock_acquire(&exec_lock);
   tid_t pid = process_execute(cmd_line);
@@ -127,19 +129,19 @@ static void wait(struct intr_frame *f, void **argv) {
 
 /* bool create(const char *file, unsigned initial_size); */
 static void create(struct intr_frame *f, void **argv) {
-  check_pointer(*(const char **) argv[0]);
+  check_pointer((void *) *(const char **) argv[0]);
   f->eax = filesys_create(*(const char **) argv[0], *(unsigned *) argv[1]);
 }
 
 /* bool remove(const char *file); */
 static void remove(struct intr_frame *f, void **argv) {
-  check_pointer(*(const char **) argv[0]);
+  check_pointer((void *) *(const char **) argv[0]);
   f->eax = filesys_remove(*(const char **) argv[0]);
 }
 
 /* int open(const char *file); */
 static void open(struct intr_frame *f, void **argv) {
-  check_pointer(*(const char **) argv[0]);
+  check_pointer((void *) *(const char **) argv[0]);
   filesystem_access_lock();
   struct file *opened_file = filesys_open(*(const char **) argv[0]);
 
@@ -269,7 +271,7 @@ static void close(struct intr_frame *_ UNUSED, void **argv) {
 
 static void check_pointer(void *pointer) {
   if (!valid_pointer(pointer)) {
-    kill();
+    kill_process();
   }
 }
 
@@ -279,7 +281,7 @@ static bool valid_pointer(void *pointer) {
          && pagedir_get_page(thread_current()->pagedir, pointer);
 }
 
-static void kill(void) {
+void kill_process(void) {
   struct thread *t = thread_current();
   t->exit_status = STATUS_KILLED;
   printf("%s: exit(%d)\n", t->name, t->exit_status);
