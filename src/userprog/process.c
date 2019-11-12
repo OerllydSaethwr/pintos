@@ -18,6 +18,7 @@
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "threads/malloc.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
@@ -76,15 +77,20 @@ start_process (void *file_name_)
   int cnt = 0;
   char *token, *save_p;
   for (token = strtok_r(file_name, " ", &save_p); token != NULL;
-       token = strtok_r(NULL, " ", &save_p)) cnt++;
+       token = strtok_r(NULL, " ", &save_p))  {
+    cnt++;
+  }
 
   /* Creates an array of pointers that each point to the tokenized strings */
-  char *tokenized[cnt + 1];
-  tokenized[cnt] = NULL;
+  char *tokenized[cnt];
   save_p = file_name;
+
   for (int i = 0; i < cnt; i++) {
     tokenized[i] = save_p;
     save_p += strlen(save_p) + 1;
+    while (*save_p == ' ') {
+      save_p++;
+    }
   }
 
   /* Initialize interrupt frame and load executable. */
@@ -216,6 +222,11 @@ process_exit (void)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
+
+  while (!list_empty(&cur->file_descriptors)) {
+    free(list_entry(list_pop_front(&cur->file_descriptors), struct file_descriptor, thread_elem));
+  }
+
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */

@@ -100,7 +100,7 @@ static void halt(struct intr_frame *__ UNUSED, void **_ UNUSED) {
   NOT_REACHED();
 }
 
-/* int exit(int status); */
+/* void exit(int status); */
 static void exit(struct intr_frame *_ UNUSED, void **argv) {
   int status = *(int *) argv[0];
   int *eax = (int *) argv[1];
