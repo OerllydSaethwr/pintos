@@ -91,6 +91,7 @@ kill (struct intr_frame *f)
               thread_name (), f->vec_no, intr_name (f->vec_no));
       intr_dump_frame (f);
       kill_process();
+      NOT_REACHED();
 
     case SEL_KCSEG:
       /* Kernel's code segment, which indicates a kernel bug.
