@@ -32,6 +32,7 @@ static void close(struct intr_frame *, void **);
 
 static bool valid_pointer(void *);
 static void check_pointer(void *pointer);
+static void check_string_pointer(const char *string);
 
 
 static struct file_descriptor *file_descriptor_finder (int fd);
@@ -97,8 +98,8 @@ static void exit(struct intr_frame *_ UNUSED, void **argv) {
 
 /* pid_t exec(const char *cmd_line); */
 static void exec(struct intr_frame *f, void **argv) {
-  check_pointer((void *) *(const char **) argv[0]);
-  char *cmd_line = *(char **) argv[0];
+  const char *cmd_line = *(char **) argv[0];
+  check_string_pointer(cmd_line);
   tid_t pid = process_execute(cmd_line);
   f->eax = pid;
 }
@@ -111,27 +112,29 @@ static void wait(struct intr_frame *f, void **argv) {
 
 /* bool create(const char *file, unsigned initial_size); */
 static void create(struct intr_frame *f, void **argv) {
-  check_pointer((void *) *(const char **) argv[0]);
+  const char *file = *(const char **) argv[0];
+  unsigned initial_size = *(unsigned *) argv[1];
+  check_string_pointer(file);
   lock_acquire(&filesystem_lock);
-  f->eax = filesys_create(*(const char **) argv[0], *(unsigned *) argv[1]);
+  f->eax = filesys_create(file, initial_size);
   lock_release(&filesystem_lock);
-
 }
 
 /* bool remove(const char *file); */
 static void remove(struct intr_frame *f, void **argv) {
-  check_pointer((void *) *(const char **) argv[0]);
+  const char *file = *(const char **) argv[0];
+  check_string_pointer(file);
   lock_acquire(&filesystem_lock);
-  f->eax = filesys_remove(*(const char **) argv[0]);
+  f->eax = filesys_remove(file);
   lock_release(&filesystem_lock);
-
 }
 
 /* int open(const char *file); */
 static void open(struct intr_frame *f, void **argv) {
-  check_pointer((void *) *(const char **) argv[0]);
+  const char *file = *(const char **) argv[0];
+  check_string_pointer(file);
   lock_acquire(&filesystem_lock);
-  struct file *opened_file = filesys_open(*(const char **) argv[0]);
+  struct file *opened_file = filesys_open(file);
 
   if (opened_file != NULL) {
     struct file_descriptor *new = malloc(sizeof(struct file_descriptor));
@@ -150,6 +153,7 @@ static void open(struct intr_frame *f, void **argv) {
 /* int filesize(int fd); */
 static void filesize(struct intr_frame *f, void **argv) {
   int fd = *(int *) argv[0];
+
   /* -1 if file can not be opened*/
   int size_of_file = -1;
 
@@ -172,12 +176,12 @@ static void read(struct intr_frame *f, void **argv) {
   int fd = *(int *) argv[0];
   void *buffer = *(void **) argv[1];
   unsigned size = *(unsigned *) argv[2];
-  int read_bytes = -1;
-
+  unsigned read_bytes = -1;
+  
   lock_acquire(&filesystem_lock);
   if (fd == STDIN_FILENO) {
     char *input_buffer = (char *) buffer;
-    for (int pos = 0; pos < size; pos++) {
+    for (unsigned pos = 0; pos < size; pos++) {
       input_buffer[pos] = input_getc();
     }
     read_bytes = size;
@@ -254,6 +258,11 @@ static void close(struct intr_frame *_ UNUSED, void **argv) {
     free(file_desc);
   }
   lock_release(&filesystem_lock);
+}
+
+static void check_string_pointer(const char *string) {
+  check_pointer((void *) string);
+  check_pointer((void *) string + sizeof(string));
 }
 
 static void check_pointer(void *pointer) {

@@ -342,6 +342,9 @@ thread_exit (void)
 
 void exit_synch(void) {
   struct thread *t = thread_current();
+  if (!list_empty(&t->dying_children_sema.waiters))
+    sema_up(&t->dying_children_sema);
+
   for (int i = 0; i < t->child_cnt; i++)
     sema_up(&t->dying_parent_sema);
 
