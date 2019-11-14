@@ -31,6 +31,9 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
 tid_t
 process_execute (const char *file_name)
 {
+  if (strlen(file_name) > MAX_STRING_LENGTH) {
+    return TID_ERROR;
+  }
 
   char *fn_copy;
   tid_t tid;
@@ -42,13 +45,6 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
-  char process_name[16];
-  strlcpy(process_name, file_name, 16);
-
-  char *save_dummy;
-  strtok_r(process_name, " ", &save_dummy);
-
-
   struct start_proc_aux process;
   process.file_name = fn_copy;
   sema_init(&process.load_finish, 0);
@@ -56,8 +52,7 @@ process_execute (const char *file_name)
   void * aux = &process;
 
   /* Create a new thread to execute FILE_NAME. */
-
-  tid = thread_create (process_name, PRI_DEFAULT, start_process, aux);
+  tid = thread_create (fn_copy, PRI_DEFAULT, start_process, aux);
 
   if (tid == TID_ERROR) {
     palloc_free_page(fn_copy);
@@ -100,6 +95,8 @@ start_process (void *aux_)
       save_p++;
     }
   }
+
+  strlcpy(thread_current()->name, tokenized[0], sizeof(thread_current()->name));
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
@@ -152,25 +149,6 @@ start_process (void *aux_)
     if_.esp -= sizeof(void *);
     *((int *) if_.esp) = 0;
 
-
-    // FIXME: Testing code for printing out the stack, remove later
-    /*
-    printf("%p: %d\n", (if_.esp + 1), *((int *) if_.esp + 1));
-    char ***sp = if_.esp;
-    for (int i = 2; i < 3; ++i) {
-      sp += i;
-      char **val = *(sp);
-      printf("%p: %p\n", sp, val);
-      for (int j = 0; j < 7; ++j) {
-        printf("%s\n", val[j]);
-      }
-      char *string = val[0];
-      for (int k = 0; k < 6; ++k) {
-        printf("%p: %s\n", string, string);
-        string += strlen(string) + 1;
-      }
-      ASSERT(string == PHYS_BASE);
-    }*/
   }
 
   /* If load failed, quit. */
@@ -220,8 +198,14 @@ process_wait (tid_t child_tid)
         return dying_child->exit_status;
       }
     }
-    thread_yield();
+    sema_down(&child_t->dying_children_sema);
   }
+}
+
+static void delete_remaining_hash(struct hash_elem *e, void *aux UNUSED) {
+  struct file_descriptor *fd = hash_entry (e, struct file_descriptor, thread_hash_elem);
+  file_close(fd->actual_file);
+  free(fd);
 }
 
 /* Free the current process's resources. */
@@ -231,12 +215,7 @@ process_exit (void)
   struct thread *cur = thread_current ();
   uint32_t *pd;
 
-  while (!list_empty(&cur->file_descriptors)) {
-    struct file_descriptor *fd = list_entry(list_pop_front(&cur->file_descriptors), struct file_descriptor, thread_elem);
-    file_close(fd->actual_file);
-    free(fd);
-  }
-
+  hash_destroy(&cur->file_hash_descriptors, delete_remaining_hash);
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */

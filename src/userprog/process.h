@@ -5,6 +5,7 @@
 #include "threads/thread.h"
 
 #define INVALID_WAIT -1
+#define MAX_STRING_LENGTH 256
 
 struct start_proc_aux {
     char *file_name;
