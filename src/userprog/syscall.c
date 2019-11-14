@@ -1,6 +1,5 @@
 #include "userprog/syscall.h"
 #include <stdio.h>
-#include <syscall-nr.h>
 #include <threads/vaddr.h>
 #include <devices/shutdown.h>
 #include <filesys/filesys.h>
@@ -34,8 +33,6 @@ static void close(struct intr_frame *, void **);
 static bool valid_pointer(void *);
 static void check_pointer(void *pointer);
 
-static void filesystem_access_lock(void);
-static void filesystem_access_unlock(void);
 
 static struct file_descriptor *file_descriptor_finder (int fd);
 
@@ -140,8 +137,8 @@ static void open(struct intr_frame *f, void **argv) {
     struct file_descriptor *new = malloc(sizeof(struct file_descriptor));
     new->descriptor = ++(thread_current()->curr_file_descriptor);
     new->actual_file = opened_file;
-
-    list_push_back(&thread_current()->file_descriptors, &new->thread_elem);
+    hash_insert(&thread_current()->file_hash_descriptors,
+      &new->thread_hash_elem);
     f->eax = new->descriptor;
   } else {
     f->eax = INVALID_OPEN;
@@ -253,7 +250,7 @@ static void close(struct intr_frame *_ UNUSED, void **argv) {
     if (file_desc->actual_file != NULL) {
       file_close(file_desc->actual_file);
     }
-    list_remove(&file_desc->thread_elem);
+    hash_delete(&thread_current()->file_hash_descriptors, &file_desc->thread_hash_elem);
     free(file_desc);
   }
   lock_release(&filesystem_lock);
@@ -279,16 +276,13 @@ void kill_process(void) {
 }
 
 static struct file_descriptor *file_descriptor_finder(int fd) {
-  struct list_elem *elem;
-  for (elem = list_begin(&thread_current()->file_descriptors);
-       elem != list_end(&thread_current()->file_descriptors);
-       elem = list_next(elem)) {
-    struct file_descriptor *desc = list_entry(elem, struct file_descriptor,
-                                              thread_elem);
-    /* Return a pointer to file matching file descriptor. */
-    if (desc->descriptor == fd) {
-      return desc;
-    }
+  struct file_descriptor temp_fd;
+  struct hash_elem *elem;
+  temp_fd.descriptor = fd;
+  elem = hash_find (&thread_current()->file_hash_descriptors,
+    &temp_fd.thread_hash_elem);
+  if(elem != NULL){
+    return hash_entry (elem, struct file_descriptor, thread_hash_elem);
   }
   return NULL;
 }

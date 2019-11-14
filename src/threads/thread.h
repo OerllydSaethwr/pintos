@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include <hash.h>
 #include "synch.h"
 
 /* States in a thread's life cycle. */
@@ -104,7 +105,7 @@ struct thread
     bool been_waited_on;
     int exit_status;
     int child_cnt;
-    struct list file_descriptors;       /* File descriptors held by process */
+    struct hash file_hash_descriptors;  /* File descriptors held by process */
     int curr_file_descriptor;           /* Current number of descriptors */
 
     struct semaphore process_load;
@@ -122,9 +123,9 @@ struct thread
 /* file Descriptor */
 struct file_descriptor
 {
-    struct file *actual_file;      /* New file created in thread */
-    struct list_elem thread_elem;  /* List elem to assign to thread */
-    int descriptor;                /* Number associating to file*/
+    struct file *actual_file;           /* New file created in thread */
+    struct hash_elem thread_hash_elem;  /* List elem to assign to thread */
+    int descriptor;                     /* Number associating to file*/
 };
 #endif
 
@@ -166,5 +167,10 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+
+unsigned file_hash (const struct hash_elem *f_, void *aux UNUSED);
+
+bool file_hash_less (const struct hash_elem *a_, const struct hash_elem *b_,
+  void *aux UNUSED);
 
 #endif /* threads/thread.h */
