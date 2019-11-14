@@ -39,7 +39,6 @@ static void filesystem_access_unlock(void);
 
 static struct file_descriptor *file_descriptor_finder (int fd);
 
-struct lock exec_lock;
 struct lock filesystem_lock;
 
 /* Array of function pointers the handler delegates to. */
@@ -55,19 +54,8 @@ static int argument_counts[] = {ARG_NUM_HALT, ARG_NUM_EXIT, ARG_NUM_EXEC,
                                 ARG_NUM_WRITE, ARG_NUM_SEEK, ARG_NUM_TELL,
                                 ARG_NUM_CLOSE};
 
-/* Lock filesystem access. Using common lock */
-static void filesystem_access_lock() {
-  lock_acquire(&filesystem_lock);
-}
-
-/* Unlock filesystem access. Using common lock */
-static void filesystem_access_unlock() {
-  lock_release(&filesystem_lock);
-}
-
 void
 syscall_init(void) {
-  lock_init(&exec_lock);
   lock_init(&filesystem_lock);
   intr_register_int(0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
@@ -97,7 +85,6 @@ syscall_handler(struct intr_frame *f) {
 /* void halt(void); */
 static void halt(struct intr_frame *__ UNUSED, void **_ UNUSED) {
   shutdown_power_off();
-  NOT_REACHED();
 }
 
 /* void exit(int status); */
@@ -115,9 +102,7 @@ static void exit(struct intr_frame *_ UNUSED, void **argv) {
 static void exec(struct intr_frame *f, void **argv) {
   check_pointer((void *) *(const char **) argv[0]);
   char *cmd_line = *(char **) argv[0];
-  lock_acquire(&exec_lock);
   tid_t pid = process_execute(cmd_line);
-  lock_release(&exec_lock);
   f->eax = pid;
 }
 
@@ -130,19 +115,25 @@ static void wait(struct intr_frame *f, void **argv) {
 /* bool create(const char *file, unsigned initial_size); */
 static void create(struct intr_frame *f, void **argv) {
   check_pointer((void *) *(const char **) argv[0]);
+  lock_acquire(&filesystem_lock);
   f->eax = filesys_create(*(const char **) argv[0], *(unsigned *) argv[1]);
+  lock_release(&filesystem_lock);
+
 }
 
 /* bool remove(const char *file); */
 static void remove(struct intr_frame *f, void **argv) {
   check_pointer((void *) *(const char **) argv[0]);
+  lock_acquire(&filesystem_lock);
   f->eax = filesys_remove(*(const char **) argv[0]);
+  lock_release(&filesystem_lock);
+
 }
 
 /* int open(const char *file); */
 static void open(struct intr_frame *f, void **argv) {
   check_pointer((void *) *(const char **) argv[0]);
-  filesystem_access_lock();
+  lock_acquire(&filesystem_lock);
   struct file *opened_file = filesys_open(*(const char **) argv[0]);
 
   if (opened_file != NULL) {
@@ -156,7 +147,7 @@ static void open(struct intr_frame *f, void **argv) {
     f->eax = INVALID_OPEN;
   }
 
-  filesystem_access_unlock();
+  lock_release(&filesystem_lock);
 }
 
 /* int filesize(int fd); */
@@ -165,7 +156,7 @@ static void filesize(struct intr_frame *f, void **argv) {
   /* -1 if file can not be opened*/
   int size_of_file = -1;
 
-  filesystem_access_lock();
+  lock_acquire(&filesystem_lock);
 
   /* Go through the list and see if this file descriptor exists. */
   struct file_descriptor *file_desc = file_descriptor_finder(fd);
@@ -173,7 +164,7 @@ static void filesize(struct intr_frame *f, void **argv) {
     size_of_file = file_length(file_desc->actual_file);
   }
 
-  filesystem_access_unlock();
+  lock_release(&filesystem_lock);
 
   f->eax = size_of_file;
 }
@@ -186,7 +177,7 @@ static void read(struct intr_frame *f, void **argv) {
   unsigned size = *(unsigned *) argv[2];
   int read_bytes = -1;
 
-
+  lock_acquire(&filesystem_lock);
   if (fd == STDIN_FILENO) {
     char *input_buffer = (char *) buffer;
     for (int pos = 0; pos < size; pos++) {
@@ -195,13 +186,13 @@ static void read(struct intr_frame *f, void **argv) {
     read_bytes = size;
 
   } else {
-    filesystem_access_lock();
     struct file_descriptor *file_desc = file_descriptor_finder(fd);
     if (file_desc != NULL && file_desc->actual_file != NULL) {
       read_bytes = file_read(file_desc->actual_file, buffer, size);
     }
-    filesystem_access_unlock();
   }
+  lock_release(&filesystem_lock);
+
 
   f->eax = read_bytes;
 }
@@ -214,18 +205,17 @@ static void write(struct intr_frame *f, void **argv) {
   const char *buffer = *(const char **) argv[1];
   unsigned size = *(unsigned *) argv[2];
   int bytes_written = 0;
+  lock_acquire(&filesystem_lock);
   if (fd == STDOUT_FILENO) {
     putbuf(buffer, size);
     bytes_written = size;
   } else {
-    filesystem_access_lock();
     struct file_descriptor *file_desc = file_descriptor_finder(fd);
     if (file_desc != NULL && file_desc->actual_file != NULL) {
       bytes_written = file_write (file_desc->actual_file, buffer, size);
     }
-    filesystem_access_unlock();
   }
-
+  lock_release(&filesystem_lock);
   f->eax = bytes_written;
 }
 
@@ -233,31 +223,31 @@ static void write(struct intr_frame *f, void **argv) {
 static void seek(struct intr_frame *_ UNUSED, void **argv) {
   int fd = *(int *) argv[0];
   off_t position = *(off_t *) argv[1];
-  filesystem_access_lock();
+  lock_acquire(&filesystem_lock);
   struct file_descriptor *file_desc = file_descriptor_finder(fd);
   if (file_desc != NULL && file_desc->actual_file != NULL) {
     file_seek(file_desc->actual_file, position);
   }
-  filesystem_access_unlock();
+  lock_release(&filesystem_lock);
 }
 
 /* unsigned tell(int fd); */
 static void tell(struct intr_frame *f, void **argv) {
   int fd = *(int *) argv[0];
-  filesystem_access_lock();
+  lock_acquire(&filesystem_lock);
   struct file_descriptor *file_desc = file_descriptor_finder(fd);
   unsigned new_position = -1;
   if (file_desc != NULL && file_desc->actual_file != NULL) {
     new_position = file_tell(file_desc->actual_file);
   }
-  filesystem_access_unlock();
+  lock_release(&filesystem_lock);
   f->eax = new_position;
 }
 
 /* void close(int fd); */
 static void close(struct intr_frame *_ UNUSED, void **argv) {
   int fd = *(int *) argv[0];
-  filesystem_access_lock();
+  lock_acquire(&filesystem_lock);
   struct file_descriptor *file_desc = file_descriptor_finder(fd);
   if (file_desc != NULL) {
     if (file_desc->actual_file != NULL) {
@@ -266,7 +256,7 @@ static void close(struct intr_frame *_ UNUSED, void **argv) {
     list_remove(&file_desc->thread_elem);
     free(file_desc);
   }
-  filesystem_access_unlock();
+  lock_release(&filesystem_lock);
 }
 
 static void check_pointer(void *pointer) {
