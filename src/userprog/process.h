@@ -4,6 +4,7 @@
 #include "threads/thread.h"
 
 #define INVALID_WAIT -1
+#define MAX_STRING_LENGTH 256
 
 tid_t process_execute (const char *file_name);
 int process_wait (tid_t);
