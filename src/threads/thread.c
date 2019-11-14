@@ -13,6 +13,7 @@
 #include "threads/vaddr.h"
 #ifdef USERPROG
 #include "userprog/process.h"
+#include "hash.h"
 #endif
 
 /* Random value for struct thread's `magic' member.
@@ -70,6 +71,27 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
+
+
+bool file_hash_less (const struct hash_elem *a_,
+            const struct hash_elem *b_, void *aux UNUSED) {
+  printf ("file hash less ");
+
+  const struct file_descriptor *a
+    = hash_entry (a_, struct file_descriptor, thread_hash_elem);
+  const struct file_descriptor *b
+    = hash_entry (b_, struct file_descriptor, thread_hash_elem);
+  return a->descriptor < b->descriptor;
+}
+
+unsigned file_hash (const struct hash_elem *f_, void *aux UNUSED)
+{
+  printf ("file hash ");
+
+  const struct file_descriptor *f
+        = hash_entry (f_, struct file_descriptor, thread_hash_elem);
+  return hash_int (f->descriptor);
+}
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -514,7 +536,8 @@ init_thread (struct thread *t, const char *name, int priority)
 
 #ifdef USERPROG
     t->curr_file_descriptor = 1;
-    list_init(&t->file_descriptors);
+//    list_init(&t->file_descriptors);
+    hash_init(&t->file_hash_descriptors, file_hash, file_hash_less, NULL);
     sema_init(&t->process_load, 0);
     t->process_fail_loaded = false;
 #endif
