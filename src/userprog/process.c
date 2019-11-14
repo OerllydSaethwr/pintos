@@ -41,15 +41,8 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
-  char process_name[16];
-  strlcpy(process_name, file_name, 16);
-
-  char *save_dummy;
-  strtok_r(process_name, " ", &save_dummy);
-
   /* Create a new thread to execute FILE_NAME. */
-
-  tid = thread_create (process_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (fn_copy, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR) {
     palloc_free_page(fn_copy);
     return tid;
@@ -92,6 +85,8 @@ start_process (void *file_name_)
       save_p++;
     }
   }
+
+  strlcpy(thread_current()->name, tokenized[0], sizeof(thread_current()->name));
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
@@ -212,7 +207,7 @@ process_wait (tid_t child_tid)
         return dying_child->exit_status;
       }
     }
-    thread_yield();
+    sema_down(&child_t->dying_children_sema);
   }
 }
 
