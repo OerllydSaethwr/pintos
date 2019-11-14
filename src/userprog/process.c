@@ -27,6 +27,7 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
    thread id, or TID_ERROR if the thread cannot be created. */
+
 tid_t
 process_execute (const char *file_name)
 {
@@ -44,28 +45,34 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
+  struct start_proc_aux process;
+  process.file_name = fn_copy;
+  sema_init(&process.load_finish, 0);
+  process.success = false;
+  void * aux = &process;
+
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (fn_copy, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (fn_copy, PRI_DEFAULT, start_process, aux);
+
   if (tid == TID_ERROR) {
     palloc_free_page(fn_copy);
     return tid;
   }
 
-  struct thread *t = find_thread_by_tid(tid);
-  sema_down(&t->process_load);
-
-  if (t->process_fail_loaded) {
-    return TID_ERROR;
+  sema_down(&process.load_finish);
+  if (process.success) {
+    return tid;
   }
-  return tid;
+  return TID_ERROR;
 }
 
 /* A thread function that loads a user process and starts it
    running. */
 static void
-start_process (void *file_name_)
+start_process (void *aux_)
 {
-  char *file_name = file_name_;
+  struct start_proc_aux * aux = (struct start_proc_aux *) aux_;
+  char *file_name = aux->file_name;
   struct intr_frame if_;
   bool success;
 
@@ -98,8 +105,8 @@ start_process (void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
 
   success = load (file_name, &if_.eip, &if_.esp);
-  thread_current()->process_fail_loaded = !success;
-  sema_up(&thread_current()->process_load);
+  aux->success = success;
+  sema_up(&aux->load_finish);
 
   /* Push arguments to stack */
   if (success) {
