@@ -4,6 +4,8 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include <hash.h>
+#include "synch.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -96,11 +98,33 @@ struct thread
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
+
+    struct thread *parent;
+    struct semaphore dying_parent_sema;
+    struct semaphore dying_children_sema;
+    bool been_waited_on;
+    int exit_status;
+    int child_cnt;
+    struct hash file_hash_descriptors;  /* File descriptors held by process */
+    int curr_file_descriptor;           /* Current number of descriptors */
+
+    struct file *executable;
+
 #endif
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
   };
+
+#ifdef USERPROG
+/* file Descriptor */
+struct file_descriptor
+{
+    struct file *actual_file;           /* New file created in thread */
+    struct hash_elem thread_hash_elem;  /* List elem to assign to thread */
+    int descriptor;                     /* Number associating to file*/
+};
+#endif
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
@@ -125,6 +149,8 @@ tid_t thread_tid (void);
 const char *thread_name (void);
 
 void thread_exit (void) NO_RETURN;
+void exit_synch(void); /* Used by thread_exit() and init.c before exiting. */
+struct thread *find_thread_by_tid(tid_t);
 void thread_yield (void);
 
 /* Performs some operation on thread t, given auxiliary data AUX. */
@@ -138,5 +164,10 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+
+unsigned file_hash (const struct hash_elem *f_, void *aux UNUSED);
+
+bool file_hash_less (const struct hash_elem *a_, const struct hash_elem *b_,
+  void *aux UNUSED);
 
 #endif /* threads/thread.h */
