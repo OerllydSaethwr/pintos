@@ -105,7 +105,6 @@ struct thread
     bool been_waited_on;
     int exit_status;
     int child_cnt;
-    struct list file_descriptors;       /* File descriptors held by process */
     struct hash file_hash_descriptors;  /* File descriptors held by process */
     int curr_file_descriptor;           /* Current number of descriptors */
 
@@ -125,7 +124,6 @@ struct thread
 struct file_descriptor
 {
     struct file *actual_file;           /* New file created in thread */
-    struct list_elem thread_elem;       /* List elem to assign to thread */
     struct hash_elem thread_hash_elem;  /* List elem to assign to thread */
     int descriptor;                     /* Number associating to file*/
 };

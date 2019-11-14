@@ -75,8 +75,6 @@ static tid_t allocate_tid (void);
 
 bool file_hash_less (const struct hash_elem *a_,
             const struct hash_elem *b_, void *aux UNUSED) {
-  printf ("file hash less ");
-
   const struct file_descriptor *a
     = hash_entry (a_, struct file_descriptor, thread_hash_elem);
   const struct file_descriptor *b
@@ -86,8 +84,6 @@ bool file_hash_less (const struct hash_elem *a_,
 
 unsigned file_hash (const struct hash_elem *f_, void *aux UNUSED)
 {
-  printf ("file hash ");
-
   const struct file_descriptor *f
         = hash_entry (f_, struct file_descriptor, thread_hash_elem);
   return hash_int (f->descriptor);
@@ -237,6 +233,10 @@ thread_create (const char *name, int priority,
   sf->ebp = 0;
 
   t->parent = thread_current();
+
+#ifdef USERPROG
+  hash_init(&t->file_hash_descriptors, file_hash, file_hash_less, NULL);
+#endif
 
   intr_set_level (old_level);
 
@@ -536,8 +536,6 @@ init_thread (struct thread *t, const char *name, int priority)
 
 #ifdef USERPROG
     t->curr_file_descriptor = 1;
-//    list_init(&t->file_descriptors);
-    hash_init(&t->file_hash_descriptors, file_hash, file_hash_less, NULL);
     sema_init(&t->process_load, 0);
     t->process_fail_loaded = false;
 #endif

@@ -144,25 +144,6 @@ start_process (void *file_name_)
     if_.esp -= sizeof(void *);
     *((int *) if_.esp) = 0;
 
-
-    // FIXME: Testing code for printing out the stack, remove later
-    /*
-    printf("%p: %d\n", (if_.esp + 1), *((int *) if_.esp + 1));
-    char ***sp = if_.esp;
-    for (int i = 2; i < 3; ++i) {
-      sp += i;
-      char **val = *(sp);
-      printf("%p: %p\n", sp, val);
-      for (int j = 0; j < 7; ++j) {
-        printf("%s\n", val[j]);
-      }
-      char *string = val[0];
-      for (int k = 0; k < 6; ++k) {
-        printf("%p: %s\n", string, string);
-        string += strlen(string) + 1;
-      }
-      ASSERT(string == PHYS_BASE);
-    }*/
   }
 
   /* If load failed, quit. */
@@ -216,6 +197,12 @@ process_wait (tid_t child_tid)
   }
 }
 
+static void delete_remaining_hash(struct hash_elem *e, void *aux UNUSED) {
+  struct file_descriptor *fd = hash_entry (e, struct file_descriptor, thread_hash_elem);
+  file_close(fd->actual_file);
+  free(fd);
+}
+
 /* Free the current process's resources. */
 void
 process_exit (void)
@@ -223,12 +210,7 @@ process_exit (void)
   struct thread *cur = thread_current ();
   uint32_t *pd;
 
-//  while (!list_empty(&cur->file_descriptors)) {
-//    struct file_descriptor *fd = list_entry(list_pop_front(&cur->file_descriptors), struct file_descriptor, thread_elem);
-//    file_close(fd->actual_file);
-//    free(fd);
-//  }
-
+  hash_destroy(&cur->file_hash_descriptors, delete_remaining_hash);
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */

@@ -1,6 +1,5 @@
 #include "userprog/syscall.h"
 #include <stdio.h>
-#include <syscall-nr.h>
 #include <threads/vaddr.h>
 #include <devices/shutdown.h>
 #include <filesys/filesys.h>
@@ -140,9 +139,6 @@ static void open(struct intr_frame *f, void **argv) {
     new->actual_file = opened_file;
     hash_insert(&thread_current()->file_hash_descriptors,
       &new->thread_hash_elem);
-    printf ("adding hashes");
-
-//    list_push_back(&thread_current()->file_descriptors, &new->thread_elem);
     f->eax = new->descriptor;
   } else {
     f->eax = INVALID_OPEN;
@@ -254,7 +250,7 @@ static void close(struct intr_frame *_ UNUSED, void **argv) {
     if (file_desc->actual_file != NULL) {
       file_close(file_desc->actual_file);
     }
-    list_remove(&file_desc->thread_elem);
+    hash_delete(&thread_current()->file_hash_descriptors, &file_desc->thread_hash_elem);
     free(file_desc);
   }
   lock_release(&filesystem_lock);
@@ -279,25 +275,7 @@ void kill_process(void) {
   thread_exit();
 }
 
-//static struct file_descriptor *file_descriptor_finder(int fd) {
-//  struct list_elem *elem;
-//  for (elem = list_begin(&thread_current()->file_descriptors);
-//       elem != list_end(&thread_current()->file_descriptors);
-//       elem = list_next(elem)) {
-//    struct file_descriptor *desc = list_entry(elem, struct file_descriptor,
-//                                              thread_elem);
-//    /* Return a pointer to file matching file descriptor. */
-//    if (desc->descriptor == fd) {
-//      return desc;
-//    }
-//  }
-//  return NULL;
-//}
-
-
-
 static struct file_descriptor *file_descriptor_finder(int fd) {
-  printf ("finding hashes");
   struct file_descriptor temp_fd;
   struct hash_elem *elem;
   temp_fd.descriptor = fd;
