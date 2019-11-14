@@ -171,7 +171,7 @@ thread_print_stats (void)
    Priority scheduling is the goal of Problem 1-3. */
 tid_t
 thread_create (const char *name, int priority,
-               thread_func *function, void *aux) 
+               thread_func *function, void *aux)
 {
   struct thread *t;
   struct kernel_thread_frame *kf;
@@ -515,8 +515,6 @@ init_thread (struct thread *t, const char *name, int priority)
 #ifdef USERPROG
     t->curr_file_descriptor = 1;
     list_init(&t->file_descriptors);
-    sema_init(&t->process_load, 0);
-    t->process_fail_loaded = false;
 #endif
 
   old_level = intr_disable ();

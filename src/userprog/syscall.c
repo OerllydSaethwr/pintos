@@ -34,9 +34,6 @@ static void close(struct intr_frame *, void **);
 static bool valid_pointer(void *);
 static void check_pointer(void *pointer);
 
-static void filesystem_access_lock(void);
-static void filesystem_access_unlock(void);
-
 static struct file_descriptor *file_descriptor_finder (int fd);
 
 struct lock filesystem_lock;
@@ -215,6 +212,7 @@ static void write(struct intr_frame *f, void **argv) {
       bytes_written = file_write (file_desc->actual_file, buffer, size);
     }
   }
+
   lock_release(&filesystem_lock);
   f->eax = bytes_written;
 }
