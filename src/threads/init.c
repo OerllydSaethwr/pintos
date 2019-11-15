@@ -133,7 +133,9 @@ main (void)
   run_actions (argv);
 
   /* Finish up. */
+#ifdef USERPROG
   exit_synch();
+#endif
   shutdown ();
   thread_exit ();
 }

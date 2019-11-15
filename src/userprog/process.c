@@ -49,20 +49,21 @@ process_execute (const char *file_name)
   process.file_name = fn_copy;
   sema_init(&process.load_finish, 0);
   process.success = false;
-  void * aux = &process;
+  void *aux = &process;
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (fn_copy, PRI_DEFAULT, start_process, aux);
 
   if (tid == TID_ERROR) {
     palloc_free_page(fn_copy);
-    return tid;
+    return TID_ERROR;
   }
 
   sema_down(&process.load_finish);
   if (process.success) {
     return tid;
   }
+
   return TID_ERROR;
 }
 
@@ -71,7 +72,7 @@ process_execute (const char *file_name)
 static void
 start_process (void *aux_)
 {
-  struct start_proc_aux * aux = (struct start_proc_aux *) aux_;
+  struct start_proc_aux *aux = (struct start_proc_aux *) aux_;
   char *file_name = aux->file_name;
   struct intr_frame if_;
   bool success;
@@ -90,7 +91,7 @@ start_process (void *aux_)
 
   for (int i = 0; i < cnt; i++) {
     tokenized[i] = save_p;
-    save_p += strlen(save_p) + 1;
+    save_p += strlen(save_p) + sizeof(char);
     while (*save_p == ' ') {
       save_p++;
     }

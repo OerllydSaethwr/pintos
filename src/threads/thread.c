@@ -205,8 +205,10 @@ thread_create (const char *name, int priority,
   if (t == NULL)
     return TID_ERROR;
 
+#ifdef USERPROG
   /* Increase the counter of children spawned, will play a role in thread_exit() */
   thread_current()->child_cnt++;
+#endif
 
   /* Initialize thread. */
   init_thread (t, name, priority);
@@ -232,9 +234,8 @@ thread_create (const char *name, int priority,
   sf->eip = switch_entry;
   sf->ebp = 0;
 
-  t->parent = thread_current();
-
 #ifdef USERPROG
+  t->parent = thread_current();
   hash_init(&t->file_hash_descriptors, file_hash, file_hash_less, NULL);
 #endif
 
@@ -333,7 +334,9 @@ thread_exit (void)
      and schedule another process.  That process will destroy us
      when it calls thread_schedule_tail(). */
   intr_disable ();
+#ifdef USERPROG
   sema_up(&thread_current()->parent->dying_children_sema);
+#endif
   list_remove (&thread_current()->allelem);
   thread_current ()->status = THREAD_DYING;
   schedule ();
@@ -532,13 +535,13 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
-  sema_init(&t->dying_parent_sema, 0);
-  sema_init(&t->dying_children_sema, 0);
-  t->been_waited_on = false;
   t->magic = THREAD_MAGIC;
 
 #ifdef USERPROG
-    t->curr_file_descriptor = 1;
+  sema_init(&t->dying_parent_sema, 0);
+  sema_init(&t->dying_children_sema, 0);
+  t->been_waited_on = false;
+  t->curr_file_descriptor = STDOUT_FILENO;
 #endif
 
   old_level = intr_disable ();
