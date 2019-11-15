@@ -111,7 +111,9 @@ static void exec (void **argv) {
   const char *cmd_line = *(char **) argv[0];
   int *eax = (int *) argv[1];
   check_string_pointer (cmd_line);
+  lock_acquire(&filesystem_lock);
   tid_t pid = process_execute (cmd_line);
+  lock_release(&filesystem_lock);
   *eax = pid;
 }
 

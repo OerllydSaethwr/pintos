@@ -349,6 +349,8 @@ thread_exit (void)
  * parent calls thread exit (which means it cannot call process_wait()
  * on this thread anymore). */
 void exit_synch (void) {
+  enum intr_level old_level = intr_disable();
+
   struct thread *t = thread_current ();
   struct thread *parent = find_thread_by_tid (t->parent);
 
@@ -367,6 +369,8 @@ void exit_synch (void) {
    * children. */
   if (parent)
     sema_down (&parent->dying_parent_sema);
+
+  intr_set_level(old_level);
 }
 
 struct thread *find_thread_by_tid (tid_t tid) {
