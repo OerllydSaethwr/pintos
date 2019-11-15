@@ -358,8 +358,7 @@ void exit_synch(void) {
   struct thread *t = thread_current();
 
   /* Unblock our parent if they blocked themselves in process_wait(). */
-  if (t != initial_thread)
-    sema_up(&t->parent->waiting_parent_sema);
+  sema_up(&t->waiting_parent_sema);
 
   /* The ordering here is crucial: first we signal our children that we,
    * the parent, are dying, so they can expect not to be process_waited on

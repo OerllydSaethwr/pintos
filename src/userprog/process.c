@@ -193,7 +193,7 @@ process_wait (tid_t child_tid)
   }
 
   /* Wait for child to die. */
-  sema_down(&t->waiting_parent_sema);
+  sema_down(&child_t->waiting_parent_sema);
   child_t->been_waited_on = true;
   return child_t->exit_status;
 }
