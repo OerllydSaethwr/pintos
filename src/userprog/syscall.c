@@ -141,9 +141,11 @@ static void open (struct intr_frame *f, void **argv) {
   check_string_pointer (file);
   lock_acquire (&filesystem_lock);
   struct file *opened_file = filesys_open (file);
-
+  /* Allocate memory for new file_discriptor struct and add pointer to it to
+   * HashTable*/
   if (opened_file != NULL) {
     struct file_descriptor *new = malloc (sizeof (struct file_descriptor));
+    /* Increment descriptor value to ensure each new file has a unique value */
     new->descriptor = ++(thread_current ()->curr_file_descriptor);
     new->actual_file = opened_file;
     hash_insert (&thread_current ()->file_hash_descriptors,
@@ -152,7 +154,6 @@ static void open (struct intr_frame *f, void **argv) {
   } else {
     f->eax = INVALID_OPEN;
   }
-
   lock_release (&filesystem_lock);
 }
 
