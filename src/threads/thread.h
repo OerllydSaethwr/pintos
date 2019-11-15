@@ -99,7 +99,7 @@ struct thread
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
 
-    struct thread *parent;              /* Thread that created us */
+    tid_t parent;              /* Thread that created us */
     struct semaphore dying_parent_sema; /* Used when we are dying */
     struct semaphore dying_children_sema; /* Used when our children are dying */
     struct semaphore waiting_parent_sema; /* Used in process_wait */

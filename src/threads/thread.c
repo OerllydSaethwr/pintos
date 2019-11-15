@@ -237,7 +237,7 @@ thread_create (const char *name, int priority,
   sf->ebp = 0;
 
 #ifdef USERPROG
-  t->parent = thread_current();
+  t->parent = thread_current()->tid;
   hash_init(&t->file_hash_descriptors, file_hash, file_hash_less, NULL);
 #endif
 
@@ -336,10 +336,6 @@ thread_exit (void)
      and schedule another process.  That process will destroy us
      when it calls thread_schedule_tail(). */
   intr_disable ();
-#ifdef USERPROG
-  /* Signal our parent that we are now definitely being destroyed. */
-  sema_up(&thread_current()->parent->dying_children_sema);
-#endif
   list_remove (&thread_current()->allelem);
   thread_current ()->status = THREAD_DYING;
   schedule ();
@@ -348,14 +344,13 @@ thread_exit (void)
 
 /* This function ensures that threads are not destroyed until
  * it is certain that other threads will not try to access
- * their fields. This is achieved by a two-way synchronization
+ * their fields. This is achieved by
  * ensuring that this thread cannot get destroyed before its
  * parent calls thread exit (which means it cannot call process_wait()
- * on this thread anymore), and also before all of its children have
- * destroyed themselves, which makes sure they won't try to access their
- * parent field. */
+ * on this thread anymore). */
 void exit_synch(void) {
   struct thread *t = thread_current();
+  struct thread *parent = find_thread_by_tid(t->parent);
 
   /* Unblock our parent if they blocked themselves in process_wait(). */
   sema_up(&t->waiting_parent_sema);
@@ -370,16 +365,8 @@ void exit_synch(void) {
    * we will not be process_waited on ever again. We're basically waiting
    * for the same "broadcast" from our parent that we did just above to our
    * children. */
-  if (t != initial_thread)
-    sema_down(&t->parent->dying_parent_sema);
-
-  /* Finally, we make sure all of our children are dead before destroying ourselves,
-   * since if they are alive they might try to access us. They will up this sema
-   * just before they destroy themselves. */
-
-  /* We ignore the idle thread, which will be a child of the inital_thread. */
-  for (int i = 0; i < (t == initial_thread ? t->child_cnt - 1 : t->child_cnt); i++)
-    sema_down(&t->dying_children_sema);
+  if (parent)
+    sema_down(&parent->dying_parent_sema);
 }
 
 struct thread *find_thread_by_tid(tid_t tid) {
