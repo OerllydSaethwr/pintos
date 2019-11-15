@@ -257,6 +257,9 @@ static void tell (struct intr_frame *f, void **argv) {
 static void close (struct intr_frame *_ UNUSED, void **argv) {
   int fd = *(int *) argv[0];
   lock_acquire (&filesystem_lock);
+
+  /* Find file in HashTable and if it exsists close it, remove it from the
+   * table and free memory */
   struct file_descriptor *file_desc = file_descriptor_finder (fd);
   if (file_desc != NULL) {
     if (file_desc->actual_file != NULL) {
@@ -264,6 +267,7 @@ static void close (struct intr_frame *_ UNUSED, void **argv) {
     }
     hash_delete (&thread_current ()->file_hash_descriptors,
                  &file_desc->thread_hash_elem);
+    /* Free previously malloced memory for file */
     free (file_desc);
   }
   lock_release (&filesystem_lock);
