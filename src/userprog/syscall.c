@@ -193,7 +193,7 @@ static void read (void **argv) {
   int *eax = (int *) argv[3];
 
   /* -1 if file can not be opened*/
-  unsigned read_bytes = INVALID;
+  off_t read_bytes = INVALID;
   lock_acquire (&filesystem_lock);
 
   /* Read into buffer from STDIN */
@@ -255,7 +255,7 @@ static void seek (void **argv) {
 static void tell (void **argv) {
   int fd = *(int *) argv[0];
   int *eax = (int *) argv[1];
-  unsigned new_position = INVALID;
+  off_t new_position = INVALID;
   lock_acquire (&filesystem_lock);
 
   /* Lookup file descriptor in HashTable and  return current position if file
