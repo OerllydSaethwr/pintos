@@ -100,7 +100,6 @@ struct thread
     uint32_t *pagedir;                    /* Page directory. */
     tid_t parent;                         /* Thread that created us */
     struct semaphore dying_parent_sema;   /* Used when we are dying */
-    struct semaphore dying_children_sema; /* Used when our children are dying */
     struct semaphore waiting_parent_sema; /* Used in process_wait */
     bool been_waited_on;                  /* Set true if wait is called on us */
     int exit_status;                      /* Stores our exit status */

@@ -551,7 +551,6 @@ init_thread (struct thread *t, const char *name, int priority)
 
 #ifdef USERPROG
   sema_init (&t->dying_parent_sema, 0);
-  sema_init (&t->dying_children_sema, 0);
   sema_init (&t->waiting_parent_sema, 0);
   t->been_waited_on = false;
   t->curr_file_descriptor = STDOUT_FILENO;
