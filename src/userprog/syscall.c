@@ -16,46 +16,46 @@ static void check_pointer (void *pointer);
 
 static void check_string_pointer (const char *string);
 
-static void close (struct intr_frame *, void **);
+static void close (void **);
 
-static void create (struct intr_frame *, void **);
+static void create (void **);
 
-static void exec (struct intr_frame *, void **);
+static void exec (void **);
 
-static void exit (struct intr_frame *, void **);
+static void exit (void **);
 
-static void filesize (struct intr_frame *, void **);
+static void filesize (void **);
 
-static void halt (struct intr_frame *, void **);
+static void halt (void **);
 
-static void open (struct intr_frame *, void **);
+static void open (void **);
 
-static void read (struct intr_frame *, void **);
+static void read (void **);
 
-static void remove (struct intr_frame *, void **);
+static void remove (void **);
 
-static void seek (struct intr_frame *, void **);
+static void seek (void **);
 
 static void syscall_handler (struct intr_frame *);
 
-static void tell (struct intr_frame *, void **);
+static void tell (void **);
 
 static bool valid_pointer (void *);
 
-static void wait (struct intr_frame *, void **);
+static void wait (void **);
 
-static void write (struct intr_frame *, void **);
+static void write (void **);
 
 static struct file_descriptor *file_descriptor_finder (int fd);
 
 static struct lock filesystem_lock;
 
 /* All delegate functions have the same function signatures (take the same
- * arguments, to allow as to use an array of function pointers and delegatte
+ * arguments), to allow as to use an array of function pointers and delegate
  * in one line */
 
 /* Array of function pointers the handler delegates to. */
-static void (*fpa[13]) (struct intr_frame *f, void **argv) = {
+static void (*fpa[13]) (void **argv) = {
   halt, exit, exec, wait, create, remove, open, filesize, read, write, seek,
   tell, close
 };
@@ -89,15 +89,15 @@ static void syscall_handler (struct intr_frame *f) {
     check_pointer (argv[i]);
   }
 
-  /* Delegating to handler */
-  fpa[*sp] (f, argv);
+  /* Delegating to specific syscall */
+  fpa[*sp] (argv);
 }
 
-static void halt (struct intr_frame *__ UNUSED, void **_ UNUSED) {
+static void halt (void **_ UNUSED) {
   shutdown_power_off ();
 }
 
-static void exit (struct intr_frame *_ UNUSED, void **argv) {
+static void exit (void **argv) {
   int status = *(int *) argv[0];
   int *eax = (int *) argv[1];
   *eax = status;
@@ -107,37 +107,42 @@ static void exit (struct intr_frame *_ UNUSED, void **argv) {
   thread_exit ();
 }
 
-static void exec (struct intr_frame *f, void **argv) {
+static void exec (void **argv) {
   const char *cmd_line = *(char **) argv[0];
+  int *eax = (int *) argv[1];
   check_string_pointer (cmd_line);
   tid_t pid = process_execute (cmd_line);
-  f->eax = pid;
+  *eax = pid;
 }
 
-static void wait (struct intr_frame *f, void **argv) {
+static void wait (void **argv) {
   tid_t child_tid = *(tid_t *) argv[0];
-  f->eax = process_wait (child_tid);
+  int *eax = (int *) argv[1];
+  *eax = process_wait (child_tid);
 }
 
-static void create (struct intr_frame *f, void **argv) {
+static void create (void **argv) {
   const char *file = *(const char **) argv[0];
   unsigned initial_size = *(unsigned *) argv[1];
+  int *eax = (int *) argv[2];
   check_string_pointer (file);
   lock_acquire (&filesystem_lock);
-  f->eax = filesys_create (file, initial_size);
+  *eax = filesys_create (file, initial_size);
   lock_release (&filesystem_lock);
 }
 
-static void remove (struct intr_frame *f, void **argv) {
+static void remove (void **argv) {
   const char *file = *(const char **) argv[0];
+  int *eax = (int *) argv[1];
   check_string_pointer (file);
   lock_acquire (&filesystem_lock);
-  f->eax = filesys_remove (file);
+  *eax = filesys_remove (file);
   lock_release (&filesystem_lock);
 }
 
-static void open (struct intr_frame *f, void **argv) {
+static void open (void **argv) {
   const char *file = *(const char **) argv[0];
+  int *eax = (int *) argv[1];
   check_string_pointer (file);
   lock_acquire (&filesystem_lock);
   struct file *opened_file = filesys_open (file);
@@ -150,18 +155,18 @@ static void open (struct intr_frame *f, void **argv) {
     new->actual_file = opened_file;
     hash_insert (&thread_current ()->file_hash_descriptors,
                  &new->thread_hash_elem);
-    f->eax = new->descriptor;
+    *eax = new->descriptor;
   } else {
-    f->eax = INVALID_OPEN;
+    *eax = INVALID;
   }
   lock_release (&filesystem_lock);
 }
 
-static void filesize (struct intr_frame *f, void **argv) {
+static void filesize (void **argv) {
   int fd = *(int *) argv[0];
-
+  int *eax = (int *) argv[1];
   /* -1 if file can not be opened*/
-  int size_of_file = -1;
+  int size_of_file = INVALID;
   lock_acquire (&filesystem_lock);
 
   /* Lookup file descriptor in HashTable and calculate size if file exists*/
@@ -171,17 +176,18 @@ static void filesize (struct intr_frame *f, void **argv) {
   }
 
   lock_release (&filesystem_lock);
-  f->eax = size_of_file;
+  *eax = size_of_file;
 }
 
-static void read (struct intr_frame *f, void **argv) {
+static void read (void **argv) {
   check_pointer (*(void **) argv[1]);
   int fd = *(int *) argv[0];
   void *buffer = *(void **) argv[1];
   unsigned size = *(unsigned *) argv[2];
+  int *eax = (int *) argv[3];
 
   /* -1 if file can not be opened*/
-  unsigned read_bytes = -1;
+  unsigned read_bytes = INVALID;
   lock_acquire (&filesystem_lock);
 
   /* Read into buffer from STDIN */
@@ -199,15 +205,16 @@ static void read (struct intr_frame *f, void **argv) {
     }
   }
   lock_release (&filesystem_lock);
-  f->eax = read_bytes;
+  *eax = read_bytes;
 }
 
 
-static void write (struct intr_frame *f, void **argv) {
+static void write (void **argv) {
   check_pointer (*(void **) argv[1]);
   int fd = *(int *) argv[0];
   const char *buffer = *(const char **) argv[1];
   unsigned size = *(unsigned *) argv[2];
+  int *eax = (int *) argv[3];
   int bytes_written = 0;
   lock_acquire (&filesystem_lock);
 
@@ -223,10 +230,10 @@ static void write (struct intr_frame *f, void **argv) {
     }
   }
   lock_release (&filesystem_lock);
-  f->eax = bytes_written;
+  *eax = bytes_written;
 }
 
-static void seek (struct intr_frame *_ UNUSED, void **argv) {
+static void seek (void **argv) {
   int fd = *(int *) argv[0];
   off_t position = *(off_t *) argv[1];
   lock_acquire (&filesystem_lock);
@@ -239,9 +246,10 @@ static void seek (struct intr_frame *_ UNUSED, void **argv) {
   lock_release (&filesystem_lock);
 }
 
-static void tell (struct intr_frame *f, void **argv) {
+static void tell (void **argv) {
   int fd = *(int *) argv[0];
-  unsigned new_position = -1;
+  int *eax = (int *) argv[1];
+  unsigned new_position = INVALID;
   lock_acquire (&filesystem_lock);
 
   /* Lookup file descriptor in HashTable and  return current position if file
@@ -251,10 +259,10 @@ static void tell (struct intr_frame *f, void **argv) {
     new_position = file_tell (file_desc->actual_file);
   }
   lock_release (&filesystem_lock);
-  f->eax = new_position;
+  *eax = new_position;
 }
 
-static void close (struct intr_frame *_ UNUSED, void **argv) {
+static void close (void **argv) {
   int fd = *(int *) argv[0];
   lock_acquire (&filesystem_lock);
 
