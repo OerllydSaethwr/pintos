@@ -45,6 +45,8 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
+  /* Make structure for start_process to use,
+   * makes sure process_exit doesn't return before load returns. */
   struct start_proc_aux process;
   process.file_name = fn_copy;
   sema_init(&process.load_finish, 0);
@@ -59,6 +61,7 @@ process_execute (const char *file_name)
     return TID_ERROR;
   }
 
+  /* Wait for load to finish. */
   sema_down(&process.load_finish);
   if (process.success) {
     return tid;
@@ -97,6 +100,7 @@ start_process (void *aux_)
     }
   }
 
+  /* Thread name stores the process name. */
   strlcpy(thread_current()->name, tokenized[0], sizeof(thread_current()->name));
 
   /* Initialize interrupt frame and load executable. */
@@ -107,6 +111,8 @@ start_process (void *aux_)
 
   success = load (file_name, &if_.eip, &if_.esp);
   aux->success = success;
+
+  /* Signal process_execute that load has finished. */
   sema_up(&aux->load_finish);
 
   /* Push arguments to stack */
@@ -182,27 +188,17 @@ process_wait (tid_t child_tid)
 {
   struct thread *t = thread_current();
   struct thread *child_t = find_thread_by_tid(child_tid);
-  if (child_t == NULL || child_t->parent != t) {
+  if (child_t == NULL || child_t->parent != t || child_t->been_waited_on) {
     return INVALID_WAIT;
   }
 
-  while (true) {
-    struct list_elem *e;
-    for(e = list_begin(&t->dying_parent_sema.waiters); e != list_end(&t->dying_parent_sema.waiters);
-        e = list_next(e)) {
-      struct thread *dying_child = list_entry(e, struct thread, elem);
-      if (child_tid == dying_child->tid) {
-        if (dying_child->been_waited_on) {
-          return INVALID_WAIT;
-        }
-        dying_child->been_waited_on = true;
-        return dying_child->exit_status;
-      }
-    }
-    sema_down(&child_t->dying_children_sema);
-  }
+  /* Wait for child to die. */
+  sema_down(&child_t->waiting_parent_sema);
+  child_t->been_waited_on = true;
+  return child_t->exit_status;
 }
 
+/* Removes remaining entries from hashmap. */
 static void delete_remaining_hash(struct hash_elem *e, void *aux UNUSED) {
   struct file_descriptor *fd = hash_entry (e, struct file_descriptor, thread_hash_elem);
   file_close(fd->actual_file);

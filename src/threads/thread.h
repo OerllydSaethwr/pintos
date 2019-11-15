@@ -99,16 +99,17 @@ struct thread
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
 
-    struct thread *parent;
-    struct semaphore dying_parent_sema;
-    struct semaphore dying_children_sema;
-    bool been_waited_on;
-    int exit_status;
-    int child_cnt;
+    struct thread *parent;              /* Thread that created us */
+    struct semaphore dying_parent_sema; /* Used when we are dying */
+    struct semaphore dying_children_sema; /* Used when our children are dying */
+    struct semaphore waiting_parent_sema; /* Used in process_wait */
+    bool been_waited_on;                /* Set true if wait is called on us */
+    int exit_status;                    /* Stores our exit status */
+    int child_cnt;                      /* Keeps count of children we create */
     struct hash file_hash_descriptors;  /* File descriptors held by process */
     int curr_file_descriptor;           /* Current number of descriptors */
 
-    struct file *executable;
+    struct file *executable;            /* Executable used by process */
 
 #endif
 
@@ -121,7 +122,7 @@ struct thread
 struct file_descriptor
 {
     struct file *actual_file;           /* New file created in thread */
-    struct hash_elem thread_hash_elem;  /* List elem to assign to thread */
+    struct hash_elem thread_hash_elem;  /* Hash elem to assign to thread */
     int descriptor;                     /* Number associating to file*/
 };
 #endif
@@ -149,9 +150,10 @@ tid_t thread_tid (void);
 const char *thread_name (void);
 
 void thread_exit (void) NO_RETURN;
-void exit_synch(void); /* Used by thread_exit() and init.c before exiting. */
-struct thread *find_thread_by_tid(tid_t);
 void thread_yield (void);
+
+void exit_synch(void);
+struct thread *find_thread_by_tid(tid_t);
 
 /* Performs some operation on thread t, given auxiliary data AUX. */
 typedef void thread_action_func (struct thread *t, void *aux);
@@ -164,8 +166,6 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
-
-unsigned file_hash (const struct hash_elem *f_, void *aux UNUSED);
 
 bool file_hash_less (const struct hash_elem *a_, const struct hash_elem *b_,
   void *aux UNUSED);

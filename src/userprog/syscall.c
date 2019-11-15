@@ -1,47 +1,63 @@
-#include "userprog/syscall.h"
-#include <stdio.h>
-#include <threads/vaddr.h>
-#include <devices/shutdown.h>
-#include <filesys/filesys.h>
-#include <threads/synch.h>
-#include <filesys/file.h>
 #include <devices/input.h>
+#include <devices/shutdown.h>
+#include <filesys/file.h>
+#include <filesys/filesys.h>
+#include <stdio.h>
+#include <threads/synch.h>
+#include <threads/vaddr.h>
+#include "pagedir.h"
+#include "process.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/malloc.h"
-#include "pagedir.h"
-#include "process.h"
+#include "userprog/syscall.h"
 
-#define INVALID_OPEN -1
+static void check_pointer (void *pointer);
 
-static void syscall_handler(struct intr_frame *);
+static void check_string_pointer (const char *string);
 
-static void halt(struct intr_frame *, void **);
-static void exit(struct intr_frame *, void **);
-static void exec(struct intr_frame *, void **);
-static void wait(struct intr_frame *, void **);
-static void create(struct intr_frame *, void **);
-static void remove(struct intr_frame *, void **);
-static void open(struct intr_frame *, void **);
-static void filesize(struct intr_frame *, void **);
-static void read(struct intr_frame *, void **);
-static void write(struct intr_frame *, void **);
-static void seek(struct intr_frame *, void **);
-static void tell(struct intr_frame *, void **);
-static void close(struct intr_frame *, void **);
+static void close (struct intr_frame *, void **);
 
-static bool valid_pointer(void *);
-static void check_pointer(void *pointer);
-static void check_string_pointer(const char *string);
+static void create (struct intr_frame *, void **);
+
+static void exec (struct intr_frame *, void **);
+
+static void exit (struct intr_frame *, void **);
+
+static void filesize (struct intr_frame *, void **);
+
+static void halt (struct intr_frame *, void **);
+
+static void open (struct intr_frame *, void **);
+
+static void read (struct intr_frame *, void **);
+
+static void remove (struct intr_frame *, void **);
+
+static void seek (struct intr_frame *, void **);
+
+static void syscall_handler (struct intr_frame *);
+
+static void tell (struct intr_frame *, void **);
+
+static bool valid_pointer (void *);
+
+static void wait (struct intr_frame *, void **);
+
+static void write (struct intr_frame *, void **);
 
 static struct file_descriptor *file_descriptor_finder (int fd);
 
-struct lock filesystem_lock;
+static struct lock filesystem_lock;
+
+/* All delegate functions have the same function signatures (take the same
+ * arguments, to allow as to use an array of function pointers and delegatte
+ * in one line */
 
 /* Array of function pointers the handler delegates to. */
-static void (*fpa[13])(struct intr_frame *f, void **argv) = {
-    halt, exit, exec, wait, create, remove, open, filesize, read, write, seek,
-    tell, close
+static void (*fpa[13]) (struct intr_frame *f, void **argv) = {
+  halt, exit, exec, wait, create, remove, open, filesize, read, write, seek,
+  tell, close
 };
 
 /* Argument counts of handler function. */
@@ -51,16 +67,14 @@ static int argument_counts[] = {ARG_NUM_HALT, ARG_NUM_EXIT, ARG_NUM_EXEC,
                                 ARG_NUM_WRITE, ARG_NUM_SEEK, ARG_NUM_TELL,
                                 ARG_NUM_CLOSE};
 
-void
-syscall_init(void) {
-  lock_init(&filesystem_lock);
-  intr_register_int(0x30, 3, INTR_ON, syscall_handler, "syscall");
+void syscall_init (void) {
+  lock_init (&filesystem_lock);
+  intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
-static void
-syscall_handler(struct intr_frame *f) {
+static void syscall_handler (struct intr_frame *f) {
   int *sp = f->esp;
-  check_pointer(sp);
+  check_pointer (sp);
 
   /* Creating argument array */
   int argc = argument_counts[*sp];
@@ -72,226 +86,228 @@ syscall_handler(struct intr_frame *f) {
 
   /* Checking if pointers are valid */
   for (int i = 0; i < argc; ++i) {
-    check_pointer(argv[i]);
+    check_pointer (argv[i]);
   }
 
   /* Delegating to handler */
-  fpa[*sp](f, argv);
+  fpa[*sp] (f, argv);
 }
 
-/* void halt(void); */
-static void halt(struct intr_frame *__ UNUSED, void **_ UNUSED) {
-  shutdown_power_off();
+static void halt (struct intr_frame *__ UNUSED, void **_ UNUSED) {
+  shutdown_power_off ();
 }
 
-/* void exit(int status); */
-static void exit(struct intr_frame *_ UNUSED, void **argv) {
+static void exit (struct intr_frame *_ UNUSED, void **argv) {
   int status = *(int *) argv[0];
   int *eax = (int *) argv[1];
   *eax = status;
-  struct thread *t = thread_current();
+  struct thread *t = thread_current ();
   t->exit_status = status;
-  printf("%s: exit(%d)\n", t->name, status);
-  thread_exit();
+  printf ("%s: exit(%d)\n", t->name, status);
+  thread_exit ();
 }
 
-/* pid_t exec(const char *cmd_line); */
-static void exec(struct intr_frame *f, void **argv) {
+static void exec (struct intr_frame *f, void **argv) {
   const char *cmd_line = *(char **) argv[0];
-  check_string_pointer(cmd_line);
-  tid_t pid = process_execute(cmd_line);
+  check_string_pointer (cmd_line);
+  tid_t pid = process_execute (cmd_line);
   f->eax = pid;
 }
 
-/* int wait(pid_t pid); */
-static void wait(struct intr_frame *f, void **argv) {
+static void wait (struct intr_frame *f, void **argv) {
   tid_t child_tid = *(tid_t *) argv[0];
-  f->eax = process_wait(child_tid);
+  f->eax = process_wait (child_tid);
 }
 
-/* bool create(const char *file, unsigned initial_size); */
-static void create(struct intr_frame *f, void **argv) {
+static void create (struct intr_frame *f, void **argv) {
   const char *file = *(const char **) argv[0];
   unsigned initial_size = *(unsigned *) argv[1];
-  check_string_pointer(file);
-  lock_acquire(&filesystem_lock);
-  f->eax = filesys_create(file, initial_size);
-  lock_release(&filesystem_lock);
+  check_string_pointer (file);
+  lock_acquire (&filesystem_lock);
+  f->eax = filesys_create (file, initial_size);
+  lock_release (&filesystem_lock);
 }
 
-/* bool remove(const char *file); */
-static void remove(struct intr_frame *f, void **argv) {
+static void remove (struct intr_frame *f, void **argv) {
   const char *file = *(const char **) argv[0];
-  check_string_pointer(file);
-  lock_acquire(&filesystem_lock);
-  f->eax = filesys_remove(file);
-  lock_release(&filesystem_lock);
+  check_string_pointer (file);
+  lock_acquire (&filesystem_lock);
+  f->eax = filesys_remove (file);
+  lock_release (&filesystem_lock);
 }
 
-/* int open(const char *file); */
-static void open(struct intr_frame *f, void **argv) {
+static void open (struct intr_frame *f, void **argv) {
   const char *file = *(const char **) argv[0];
-  check_string_pointer(file);
-  lock_acquire(&filesystem_lock);
-  struct file *opened_file = filesys_open(file);
-
+  check_string_pointer (file);
+  lock_acquire (&filesystem_lock);
+  struct file *opened_file = filesys_open (file);
+  /* Allocate memory for new file_discriptor struct and add pointer to it to
+   * HashTable*/
   if (opened_file != NULL) {
-    struct file_descriptor *new = malloc(sizeof(struct file_descriptor));
-    new->descriptor = ++(thread_current()->curr_file_descriptor);
+    struct file_descriptor *new = malloc (sizeof (struct file_descriptor));
+    /* Increment descriptor value to ensure each new file has a unique value */
+    new->descriptor = ++(thread_current ()->curr_file_descriptor);
     new->actual_file = opened_file;
-    hash_insert(&thread_current()->file_hash_descriptors,
-      &new->thread_hash_elem);
+    hash_insert (&thread_current ()->file_hash_descriptors,
+                 &new->thread_hash_elem);
     f->eax = new->descriptor;
   } else {
     f->eax = INVALID_OPEN;
   }
-
-  lock_release(&filesystem_lock);
+  lock_release (&filesystem_lock);
 }
 
-/* int filesize(int fd); */
-static void filesize(struct intr_frame *f, void **argv) {
+static void filesize (struct intr_frame *f, void **argv) {
   int fd = *(int *) argv[0];
 
   /* -1 if file can not be opened*/
   int size_of_file = -1;
+  lock_acquire (&filesystem_lock);
 
-  lock_acquire(&filesystem_lock);
-
-  /* Go through the list and see if this file descriptor exists. */
-  struct file_descriptor *file_desc = file_descriptor_finder(fd);
+  /* Lookup file descriptor in HashTable and calculate size if file exists*/
+  struct file_descriptor *file_desc = file_descriptor_finder (fd);
   if (file_desc != NULL && file_desc->actual_file != NULL) {
-    size_of_file = file_length(file_desc->actual_file);
+    size_of_file = file_length (file_desc->actual_file);
   }
 
-  lock_release(&filesystem_lock);
-
+  lock_release (&filesystem_lock);
   f->eax = size_of_file;
 }
 
-/* int read(int fd, void *buffer, unsigned size); */
-static void read(struct intr_frame *f, void **argv) {
-  check_pointer(*(void **) argv[1]);
+static void read (struct intr_frame *f, void **argv) {
+  check_pointer (*(void **) argv[1]);
   int fd = *(int *) argv[0];
   void *buffer = *(void **) argv[1];
   unsigned size = *(unsigned *) argv[2];
+
+  /* -1 if file can not be opened*/
   unsigned read_bytes = -1;
-  
-  lock_acquire(&filesystem_lock);
+  lock_acquire (&filesystem_lock);
+
+  /* Read into buffer from STDIN */
   if (fd == STDIN_FILENO) {
     char *input_buffer = (char *) buffer;
     for (unsigned pos = 0; pos < size; pos++) {
-      input_buffer[pos] = input_getc();
+      input_buffer[pos] = input_getc ();
     }
     read_bytes = size;
-
   } else {
-    struct file_descriptor *file_desc = file_descriptor_finder(fd);
+    /* Lookup file descriptor in HashTable and read into buffer if file exists*/
+    struct file_descriptor *file_desc = file_descriptor_finder (fd);
     if (file_desc != NULL && file_desc->actual_file != NULL) {
-      read_bytes = file_read(file_desc->actual_file, buffer, size);
+      read_bytes = file_read (file_desc->actual_file, buffer, size);
     }
   }
-  lock_release(&filesystem_lock);
-
-
+  lock_release (&filesystem_lock);
   f->eax = read_bytes;
 }
 
 
-/* int write(int fd, void *buffer, unsigned size); */
-static void write(struct intr_frame *f, void **argv) {
-  check_pointer(*(void **) argv[1]);
+static void write (struct intr_frame *f, void **argv) {
+  check_pointer (*(void **) argv[1]);
   int fd = *(int *) argv[0];
   const char *buffer = *(const char **) argv[1];
   unsigned size = *(unsigned *) argv[2];
   int bytes_written = 0;
-  lock_acquire(&filesystem_lock);
+  lock_acquire (&filesystem_lock);
+
+  /* Write out into STDOUT*/
   if (fd == STDOUT_FILENO) {
-    putbuf(buffer, size);
+    putbuf (buffer, size);
     bytes_written = size;
   } else {
-    struct file_descriptor *file_desc = file_descriptor_finder(fd);
+    /* Lookup file descriptor in HashTable & write into buffer if file exists*/
+    struct file_descriptor *file_desc = file_descriptor_finder (fd);
     if (file_desc != NULL && file_desc->actual_file != NULL) {
       bytes_written = file_write (file_desc->actual_file, buffer, size);
     }
   }
-
-  lock_release(&filesystem_lock);
+  lock_release (&filesystem_lock);
   f->eax = bytes_written;
 }
 
-/* void seek(int fd, unsigned position); */
-static void seek(struct intr_frame *_ UNUSED, void **argv) {
+static void seek (struct intr_frame *_ UNUSED, void **argv) {
   int fd = *(int *) argv[0];
   off_t position = *(off_t *) argv[1];
-  lock_acquire(&filesystem_lock);
-  struct file_descriptor *file_desc = file_descriptor_finder(fd);
+  lock_acquire (&filesystem_lock);
+
+  /* Lookup file descriptor in HashTable & seek to position if file exists*/
+  struct file_descriptor *file_desc = file_descriptor_finder (fd);
   if (file_desc != NULL && file_desc->actual_file != NULL) {
-    file_seek(file_desc->actual_file, position);
+    file_seek (file_desc->actual_file, position);
   }
-  lock_release(&filesystem_lock);
+  lock_release (&filesystem_lock);
 }
 
-/* unsigned tell(int fd); */
-static void tell(struct intr_frame *f, void **argv) {
+static void tell (struct intr_frame *f, void **argv) {
   int fd = *(int *) argv[0];
-  lock_acquire(&filesystem_lock);
-  struct file_descriptor *file_desc = file_descriptor_finder(fd);
   unsigned new_position = -1;
+  lock_acquire (&filesystem_lock);
+
+  /* Lookup file descriptor in HashTable and  return current position if file
+   * exists*/
+  struct file_descriptor *file_desc = file_descriptor_finder (fd);
   if (file_desc != NULL && file_desc->actual_file != NULL) {
-    new_position = file_tell(file_desc->actual_file);
+    new_position = file_tell (file_desc->actual_file);
   }
-  lock_release(&filesystem_lock);
+  lock_release (&filesystem_lock);
   f->eax = new_position;
 }
 
-/* void close(int fd); */
-static void close(struct intr_frame *_ UNUSED, void **argv) {
+static void close (struct intr_frame *_ UNUSED, void **argv) {
   int fd = *(int *) argv[0];
-  lock_acquire(&filesystem_lock);
-  struct file_descriptor *file_desc = file_descriptor_finder(fd);
+  lock_acquire (&filesystem_lock);
+
+  /* Find file in HashTable and if it exsists close it, remove it from the
+   * table and free memory */
+  struct file_descriptor *file_desc = file_descriptor_finder (fd);
   if (file_desc != NULL) {
     if (file_desc->actual_file != NULL) {
-      file_close(file_desc->actual_file);
+      file_close (file_desc->actual_file);
     }
-    hash_delete(&thread_current()->file_hash_descriptors, &file_desc->thread_hash_elem);
-    free(file_desc);
+    hash_delete (&thread_current ()->file_hash_descriptors,
+                 &file_desc->thread_hash_elem);
+    /* Free previously malloced memory for file */
+    free (file_desc);
   }
-  lock_release(&filesystem_lock);
+  lock_release (&filesystem_lock);
 }
 
-static void check_string_pointer(const char *string) {
-  check_pointer((void *) string);
-  check_pointer((void *) string + sizeof(string));
+static void check_string_pointer (const char *string) {
+  check_pointer ((void *) string);
+  check_pointer ((void *) string + sizeof (string));
 }
 
-static void check_pointer(void *pointer) {
-  if (!valid_pointer(pointer)) {
-    kill_process();
+static void check_pointer (void *pointer) {
+  if (!valid_pointer (pointer)) {
+    kill_process ();
   }
 }
 
-static bool valid_pointer(void *pointer) {
+static bool valid_pointer (void *pointer) {
   return pointer != NULL
-         && is_user_vaddr(pointer)
-         && pagedir_get_page(thread_current()->pagedir, pointer);
+         && is_user_vaddr (pointer)
+         && pagedir_get_page (thread_current ()->pagedir, pointer);
 }
 
-void kill_process(void) {
-  struct thread *t = thread_current();
+void kill_process (void) {
+  struct thread *t = thread_current ();
   t->exit_status = STATUS_KILLED;
-  printf("%s: exit(%d)\n", t->name, t->exit_status);
-  thread_exit();
+  printf ("%s: exit(%d)\n", t->name, t->exit_status);
+  thread_exit ();
 }
 
-static struct file_descriptor *file_descriptor_finder(int fd) {
+/* A function to search HashTable for given file descriptor value. Returns
+ * file descriptor struct if found, otherwise returns NULL */
+static struct file_descriptor *file_descriptor_finder (int fd) {
   struct file_descriptor temp_fd;
   struct hash_elem *elem;
   temp_fd.descriptor = fd;
-  elem = hash_find (&thread_current()->file_hash_descriptors,
-    &temp_fd.thread_hash_elem);
-  if(elem != NULL){
+  elem = hash_find (&thread_current ()->file_hash_descriptors,
+                    &temp_fd.thread_hash_elem);
+  if (elem != NULL) {
     return hash_entry (elem, struct file_descriptor, thread_hash_elem);
   }
+
   return NULL;
 }

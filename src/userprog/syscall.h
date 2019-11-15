@@ -13,9 +13,10 @@
 #define ARG_NUM_SEEK 2
 #define ARG_NUM_TELL 1
 #define ARG_NUM_CLOSE 1
-
+#define INVALID_OPEN -1
 #define STATUS_KILLED -1
 
 void syscall_init (void);
 void kill_process(void);
-#endif /* userprog/syscall.h */
+#endif
+/* userprog/syscall.h */
