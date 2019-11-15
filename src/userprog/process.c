@@ -199,7 +199,7 @@ process_wait (tid_t child_tid)
         return dying_child->exit_status;
       }
     }
-    sema_down(&child_t->dying_children_sema);
+    sema_down(&t->waiting_parent_sema);
   }
 }
 

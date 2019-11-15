@@ -71,8 +71,9 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
+static unsigned file_hash (const struct hash_elem *f_, void *aux UNUSED);
 
-
+/* Comparator function used by hashmap. */
 bool file_hash_less (const struct hash_elem *a_,
             const struct hash_elem *b_, void *aux UNUSED) {
   const struct file_descriptor *a
@@ -82,7 +83,8 @@ bool file_hash_less (const struct hash_elem *a_,
   return a->descriptor < b->descriptor;
 }
 
-unsigned file_hash (const struct hash_elem *f_, void *aux UNUSED)
+/* Helper function for hash table. */
+static unsigned file_hash (const struct hash_elem *f_, void *aux UNUSED)
 {
   const struct file_descriptor *f
         = hash_entry (f_, struct file_descriptor, thread_hash_elem);
@@ -335,6 +337,7 @@ thread_exit (void)
      when it calls thread_schedule_tail(). */
   intr_disable ();
 #ifdef USERPROG
+  /* Signal our parent that we are now definitely being destroyed. */
   sema_up(&thread_current()->parent->dying_children_sema);
 #endif
   list_remove (&thread_current()->allelem);
@@ -343,17 +346,39 @@ thread_exit (void)
   NOT_REACHED ();
 }
 
+/* This function ensures that threads are not destroyed until
+ * it is certain that other threads will not try to access
+ * their fields. This is achieved by a two-way synchronization
+ * ensuring that this thread cannot get destroyed before its
+ * parent calls thread exit (which means it cannot call process_wait()
+ * on this thread anymore), and also before all of its children have
+ * destroyed themselves, which makes sure they won't try to access their
+ * parent field. */
 void exit_synch(void) {
   struct thread *t = thread_current();
-  if (!list_empty(&t->dying_children_sema.waiters))
-    sema_up(&t->dying_children_sema);
 
+  /* Unblock our parent if they blocked themselves in process_wait(). */
+  if (t != initial_thread)
+    sema_up(&t->parent->waiting_parent_sema);
+
+  /* The ordering here is crucial: first we signal our children that we,
+   * the parent, are dying, so they can expect not to be process_waited on
+   * ever again. */
   for (int i = 0; i < t->child_cnt; i++)
     sema_up(&t->dying_parent_sema);
 
+  /* Now we wait for our parent to go into thread_exit and signal us that
+   * we will not be process_waited on ever again. We're basically waiting
+   * for the same "broadcast" from our parent that we did just above to our
+   * children. */
   if (t != initial_thread)
     sema_down(&t->parent->dying_parent_sema);
 
+  /* Finally, we make sure all of our children are dead before destroying ourselves,
+   * since if they are alive they might try to access us. They will up this sema
+   * just before they destroy themselves. */
+
+  /* We ignore the idle thread, which will be a child of the inital_thread. */
   for (int i = 0; i < (t == initial_thread ? t->child_cnt - 1 : t->child_cnt); i++)
     sema_down(&t->dying_children_sema);
 }
@@ -540,6 +565,7 @@ init_thread (struct thread *t, const char *name, int priority)
 #ifdef USERPROG
   sema_init(&t->dying_parent_sema, 0);
   sema_init(&t->dying_children_sema, 0);
+  sema_init(&t->waiting_parent_sema, 0);
   t->been_waited_on = false;
   t->curr_file_descriptor = STDOUT_FILENO;
 #endif

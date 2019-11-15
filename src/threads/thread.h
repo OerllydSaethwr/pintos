@@ -102,6 +102,7 @@ struct thread
     struct thread *parent;              /* Thread that created us */
     struct semaphore dying_parent_sema; /* Used when we are dying */
     struct semaphore dying_children_sema; /* Used when our children are dying */
+    struct semaphore waiting_parent_sema; /* Used in process_wait */
     bool been_waited_on;                /* Set true if wait is called on us */
     int exit_status;                    /* Stores our exit status */
     int child_cnt;                      /* Keeps count of children we create */
@@ -165,8 +166,6 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
-
-unsigned file_hash (const struct hash_elem *f_, void *aux UNUSED);
 
 bool file_hash_less (const struct hash_elem *a_, const struct hash_elem *b_,
   void *aux UNUSED);
