@@ -188,7 +188,7 @@ process_wait (tid_t child_tid)
 {
   struct thread *t = thread_current();
   struct thread *child_t = find_thread_by_tid(child_tid);
-  if (child_t == NULL || child_t->parent != t || child_t->been_waited_on) {
+  if (child_t == NULL || child_t->parent != t->tid || child_t->been_waited_on) {
     return INVALID_WAIT;
   }
 
