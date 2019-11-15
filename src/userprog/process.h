@@ -8,9 +8,9 @@
 #define MAX_STRING_LENGTH 256
 
 struct start_proc_aux {
+    struct semaphore load_finish;
     char *file_name;
     bool success;
-    struct semaphore load_finish;
 };
 
 tid_t process_execute (const char *file_name);
