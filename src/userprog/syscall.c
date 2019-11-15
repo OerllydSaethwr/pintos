@@ -152,6 +152,9 @@ static void open (void **argv) {
    * HashTable*/
   if (opened_file != NULL) {
     struct file_descriptor *new = malloc (sizeof (struct file_descriptor));
+    if (!new) {
+      goto invalid;
+    }
     /* Increment descriptor value to ensure each new file has a unique value */
     new->descriptor = ++(thread_current ()->curr_file_descriptor);
     new->actual_file = opened_file;
@@ -159,6 +162,7 @@ static void open (void **argv) {
                  &new->thread_hash_elem);
     *eax = new->descriptor;
   } else {
+    invalid:
     *eax = INVALID;
   }
   lock_release (&filesystem_lock);
