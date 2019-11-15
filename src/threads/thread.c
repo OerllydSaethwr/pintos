@@ -57,7 +57,7 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
-   Controlled by kernel command-line option "mlfqs". */
+   Controlled by kernel command-line option "-mlfqs". */
 bool thread_mlfqs;
 
 static void kernel_thread (thread_func *, void *aux);
@@ -75,7 +75,7 @@ static unsigned file_hash (const struct hash_elem *f_, void *aux UNUSED);
 
 /* Comparator function used by hashmap. */
 bool file_hash_less (const struct hash_elem *a_,
-            const struct hash_elem *b_, void *aux UNUSED) {
+                     const struct hash_elem *b_, void *aux UNUSED) {
   const struct file_descriptor *a
     = hash_entry (a_, struct file_descriptor, thread_hash_elem);
   const struct file_descriptor *b
@@ -208,8 +208,8 @@ thread_create (const char *name, int priority,
     return TID_ERROR;
 
 #ifdef USERPROG
-  /* Increase the counter of children spawned, will play a role in thread_exit() */
-  thread_current()->child_cnt++;
+  /* Increase the children spawned counter, will play a role in thread_exit() */
+  thread_current ()->child_cnt++;
 #endif
 
   /* Initialize thread. */
@@ -329,7 +329,7 @@ thread_exit (void)
 
 #ifdef USERPROG
   process_exit ();
-  exit_synch();
+  exit_synch ();
 #endif
 
   /* Remove thread from all threads list, set our status to dying,
@@ -348,30 +348,31 @@ thread_exit (void)
  * ensuring that this thread cannot get destroyed before its
  * parent calls thread exit (which means it cannot call process_wait()
  * on this thread anymore). */
-void exit_synch(void) {
-  struct thread *t = thread_current();
-  struct thread *parent = find_thread_by_tid(t->parent);
+void exit_synch (void) {
+  struct thread *t = thread_current ();
+  struct thread *parent = find_thread_by_tid (t->parent);
 
   /* Unblock our parent if they blocked themselves in process_wait(). */
-  sema_up(&t->waiting_parent_sema);
+  sema_up (&t->waiting_parent_sema);
 
   /* The ordering here is crucial: first we signal our children that we,
    * the parent, are dying, so they can expect not to be process_waited on
    * ever again. */
   for (int i = 0; i < t->child_cnt; i++)
-    sema_up(&t->dying_parent_sema);
+    sema_up (&t->dying_parent_sema);
 
   /* Now we wait for our parent to go into thread_exit and signal us that
    * we will not be process_waited on ever again. We're basically waiting
    * for the same "broadcast" from our parent that we did just above to our
    * children. */
   if (parent)
-    sema_down(&parent->dying_parent_sema);
+    sema_down (&parent->dying_parent_sema);
 }
 
-struct thread *find_thread_by_tid(tid_t tid) {
+struct thread *find_thread_by_tid (tid_t tid) {
   struct list_elem *e;
-  for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e)) {
+  for (e = list_begin (&all_list);
+       e != list_end (&all_list); e = list_next (e)) {
     struct thread *t = list_entry(e, struct thread, allelem);
     if (t->tid == tid) {
       return t;
@@ -549,9 +550,9 @@ init_thread (struct thread *t, const char *name, int priority)
   t->magic = THREAD_MAGIC;
 
 #ifdef USERPROG
-  sema_init(&t->dying_parent_sema, 0);
-  sema_init(&t->dying_children_sema, 0);
-  sema_init(&t->waiting_parent_sema, 0);
+  sema_init (&t->dying_parent_sema, 0);
+  sema_init (&t->dying_children_sema, 0);
+  sema_init (&t->waiting_parent_sema, 0);
   t->been_waited_on = false;
   t->curr_file_descriptor = STDOUT_FILENO;
 #endif

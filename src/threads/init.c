@@ -134,7 +134,7 @@ main (void)
 
   /* Finish up. */
 #ifdef USERPROG
-  exit_synch();
+  exit_synch ();
 #endif
   shutdown ();
   thread_exit ();

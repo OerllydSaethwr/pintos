@@ -28,10 +28,8 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
    before process_execute() returns.  Returns the new process's
    thread id, or TID_ERROR if the thread cannot be created. */
 
-tid_t
-process_execute (const char *file_name)
-{
-  if (strlen(file_name) > MAX_STRING_LENGTH) {
+tid_t process_execute (const char *file_name) {
+  if (strlen (file_name) > MAX_STRING_LENGTH) {
     return TID_ERROR;
   }
 
@@ -49,7 +47,7 @@ process_execute (const char *file_name)
    * makes sure process_exit doesn't return before load returns. */
   struct start_proc_aux process;
   process.file_name = fn_copy;
-  sema_init(&process.load_finish, 0);
+  sema_init (&process.load_finish, 0);
   process.success = false;
   void *aux = &process;
 
@@ -57,12 +55,12 @@ process_execute (const char *file_name)
   tid = thread_create (fn_copy, PRI_DEFAULT, start_process, aux);
 
   if (tid == TID_ERROR) {
-    palloc_free_page(fn_copy);
+    palloc_free_page (fn_copy);
     return TID_ERROR;
   }
 
   /* Wait for load to finish. */
-  sema_down(&process.load_finish);
+  sema_down (&process.load_finish);
   if (process.success) {
     return tid;
   }
@@ -72,9 +70,7 @@ process_execute (const char *file_name)
 
 /* A thread function that loads a user process and starts it
    running. */
-static void
-start_process (void *aux_)
-{
+static void start_process (void *aux_) {
   struct start_proc_aux *aux = (struct start_proc_aux *) aux_;
   char *file_name = aux->file_name;
   struct intr_frame if_;
@@ -83,8 +79,8 @@ start_process (void *aux_)
   /* Tokenizes fn_copy */
   int cnt = 0;
   char *token, *save_p;
-  for (token = strtok_r(file_name, " ", &save_p); token != NULL;
-       token = strtok_r(NULL, " ", &save_p))  {
+  for (token = strtok_r (file_name, " ", &save_p); token != NULL;
+       token = strtok_r (NULL, " ", &save_p)) {
     cnt++;
   }
 
@@ -94,14 +90,15 @@ start_process (void *aux_)
 
   for (int i = 0; i < cnt; i++) {
     tokenized[i] = save_p;
-    save_p += strlen(save_p) + sizeof(char);
+    save_p += strlen (save_p) + sizeof (char);
     while (*save_p == ' ') {
       save_p++;
     }
   }
 
   /* Thread name stores the process name. */
-  strlcpy(thread_current()->name, tokenized[0], sizeof(thread_current()->name));
+  strlcpy (thread_current ()->name, tokenized[0],
+           sizeof (thread_current ()->name));
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
@@ -113,7 +110,7 @@ start_process (void *aux_)
   aux->success = success;
 
   /* Signal process_execute that load has finished. */
-  sema_up(&aux->load_finish);
+  sema_up (&aux->load_finish);
 
   /* Push arguments to stack */
   if (success) {
@@ -123,8 +120,8 @@ start_process (void *aux_)
 
     for (--cnt; cnt >= 0; cnt--) {
       char *curr = tokenized[cnt];
-      if_.esp -= strlen(curr) + sizeof(char);
-      strlcpy(if_.esp, curr, strlen(curr) + 1);
+      if_.esp -= strlen (curr) + sizeof (char);
+      strlcpy (if_.esp, curr, strlen (curr) + 1);
 
       /* Update our pointers to point to the strings to the stack,
        * this will make pushing the pointers easier later.
@@ -134,26 +131,26 @@ start_process (void *aux_)
     }
 
     /* Push 0 separator */
-    if_.esp -= sizeof(void *);
+    if_.esp -= sizeof (void *);
     *((int *) if_.esp) = 0;
 
     /* Push pointers to arg strings */
     for (cnt = tknzd_size - 1; cnt >= 0; cnt--) {
-      if_.esp -= sizeof(char *);
+      if_.esp -= sizeof (char *);
       *((char **) if_.esp) = tokenized[cnt];
     }
 
     /* Push array pointer */
     char **argv = if_.esp;
-    if_.esp -= sizeof(char **);
+    if_.esp -= sizeof (char **);
     *((char ***) if_.esp) = argv;
 
     /* Push argc */
-    if_.esp -= sizeof(int);
+    if_.esp -= sizeof (int);
     *((int *) if_.esp) = tknzd_size;
 
     /* Push fake return address */
-    if_.esp -= sizeof(void *);
+    if_.esp -= sizeof (void *);
     *((int *) if_.esp) = 0;
 
   }
@@ -161,7 +158,7 @@ start_process (void *aux_)
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success) {
-    thread_exit();
+    thread_exit ();
   }
 
   /* Start the user process by simulating a return from an
@@ -183,54 +180,50 @@ start_process (void *aux_)
 
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
-int
-process_wait (tid_t child_tid)
-{
-  struct thread *t = thread_current();
-  struct thread *child_t = find_thread_by_tid(child_tid);
+int process_wait (tid_t child_tid) {
+  struct thread *t = thread_current ();
+  struct thread *child_t = find_thread_by_tid (child_tid);
   if (child_t == NULL || child_t->parent != t->tid || child_t->been_waited_on) {
     return INVALID_WAIT;
   }
 
   /* Wait for child to die. */
-  sema_down(&child_t->waiting_parent_sema);
+  sema_down (&child_t->waiting_parent_sema);
   child_t->been_waited_on = true;
   return child_t->exit_status;
 }
 
-/* Removes remaining entries from hashmap. */
-static void delete_remaining_hash(struct hash_elem *e, void *aux UNUSED) {
-  struct file_descriptor *fd = hash_entry (e, struct file_descriptor, thread_hash_elem);
-  file_close(fd->actual_file);
-  free(fd);
+/* Removes remaining entries from HashMap. */
+static void delete_remaining_hash (struct hash_elem *e, void *aux UNUSED) {
+  struct file_descriptor *fd = hash_entry (e, struct file_descriptor,
+                                           thread_hash_elem);
+  file_close (fd->actual_file);
+  free (fd);
 }
 
 /* Free the current process's resources. */
-void
-process_exit (void)
-{
+void process_exit (void) {
   struct thread *cur = thread_current ();
   uint32_t *pd;
 
-  hash_destroy(&cur->file_hash_descriptors, delete_remaining_hash);
+  hash_destroy (&cur->file_hash_descriptors, delete_remaining_hash);
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   pd = cur->pagedir;
-  if (pd != NULL) 
-    {
-      /* Correct ordering here is crucial.  We must set
-         cur->pagedir to NULL before switching page directories,
-         so that a timer interrupt can't switch back to the
-         process page directory.  We must activate the base page
-         directory before destroying the process's page
-         directory, or our active page directory will be one
-         that's been freed (and cleared). */
-      cur->pagedir = NULL;
-      pagedir_activate (NULL);
-      file_close(cur->executable);
-      pagedir_destroy (pd);
-    }
+  if (pd != NULL) {
+    /* Correct ordering here is crucial.  We must set
+       cur->pagedir to NULL before switching page directories,
+       so that a timer interrupt can't switch back to the
+       process page directory.  We must activate the base page
+       directory before destroying the process's page
+       directory, or our active page directory will be one
+       that's been freed (and cleared). */
+    cur->pagedir = NULL;
+    pagedir_activate (NULL);
+    file_close (cur->executable);
+    pagedir_destroy (pd);
+  }
 }
 
 /* Sets up the CPU for running user code in the current
@@ -322,9 +315,7 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
    Stores the executable's entry point into *EIP
    and its initial stack pointer into *ESP.
    Returns true if successful, false otherwise. */
-bool
-load (const char *file_name, void (**eip) (void), void **esp) 
-{
+bool load (const char *file_name, void (**eip) (void), void **esp) {
   struct thread *t = thread_current ();
   struct Elf32_Ehdr ehdr;
   struct file *file = NULL;
@@ -347,8 +338,8 @@ load (const char *file_name, void (**eip) (void), void **esp)
       printf ("load: %s: open failed\n", file_name);
       goto done; 
     }
-  file_deny_write(file);
 
+  file_deny_write (file);
   t->executable = file;
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
@@ -433,7 +424,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
  done:
   /* We arrive here whether the load is successful or not. */
-  // file_close (file);
   return success;
 }
 
