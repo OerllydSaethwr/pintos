@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "vm/frame.h"
 #include "devices/kbd.h"
 #include "devices/input.h"
 #include "devices/serial.h"
@@ -113,6 +114,7 @@ main (void)
 #ifdef USERPROG
   exception_init ();
   syscall_init ();
+  frame_init();
 #endif
 
   /* Start thread scheduler and enable interrupts. */

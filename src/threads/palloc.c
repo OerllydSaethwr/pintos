@@ -7,9 +7,12 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include "threads/malloc.h"
 #include "threads/loader.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "vm/frame.h"
+#include "thread.h"
 
 /* Page allocator.  Hands out memory in page-size (or
    page-multiple) chunks.  See malloc.h for an allocator that
@@ -90,12 +93,21 @@ palloc_get_multiple (enum palloc_flags flags, size_t page_cnt)
     {
       if (flags & PAL_ZERO)
         memset (pages, 0, PGSIZE * page_cnt);
+
+      if (flags & PAL_USER) {
+        struct frame *new = malloc(sizeof(struct frame));
+        new->frame_no = vtop(pages);
+        new->process = thread_current();
+        hash_replace(&frame_table, &new->hash_elem);
+      }
     }
   else 
     {
       if (flags & PAL_ASSERT)
         PANIC ("palloc_get: out of pages");
     }
+
+
 
   return pages;
 }
