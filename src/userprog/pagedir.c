@@ -5,6 +5,7 @@
 #include "threads/init.h"
 #include "threads/pte.h"
 #include "threads/palloc.h"
+#include "threads/malloc.h"
 
 static uint32_t *active_pd (void);
 static void invalidate_pagedir (uint32_t *);
@@ -96,7 +97,7 @@ lookup_page (uint32_t *pd, const void *vaddr, bool create)
    Returns true if successful, false if memory allocation
    failed. */
 bool
-pagedir_set_page (uint32_t *pd, void *upage, void *kpage, bool writable)
+pagedir_set_page (uint32_t *pd, void *upage, void *kpage, bool writable, enum pte_type type)
 {
   uint32_t *pte;
 
@@ -111,7 +112,8 @@ pagedir_set_page (uint32_t *pd, void *upage, void *kpage, bool writable)
   if (pte != NULL) 
     {
       ASSERT ((*pte & PTE_P) == 0);
-      *pte = pte_create_user (kpage, writable);
+      *pte = pte_create(type, kpage, writable);
+      //*pte = pte_create_user (kpage, writable);
       return true;
     }
   else
@@ -134,6 +136,18 @@ pagedir_get_page (uint32_t *pd, const void *uaddr)
     return pte_get_page (*pte) + pg_ofs (uaddr);
   else
     return NULL;
+}
+
+struct supp_elem *pagedir_get_fake(uint32_t *pd, const void *uaddr) {
+  uint32_t *pte;
+
+  ASSERT(is_user_vaddr(uaddr));
+
+  pte = lookup_page(pd, uaddr, false);
+  if (pte != NULL && (*pte & ~PTE_P)) {
+    return pte_retrieve_addr(*pte);
+  }
+  return NULL;
 }
 
 /* Marks user virtual page UPAGE "not present" in page

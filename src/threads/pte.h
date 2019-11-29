@@ -67,6 +67,12 @@ static inline uintptr_t pd_no (const void *va) {
 #define PTE_A 0x20              /* 1=accessed, 0=not acccessed. */
 #define PTE_D 0x40              /* 1=dirty, 0=not dirty (PTEs only). */
 
+enum pte_type {
+  KERNEL,
+  USER,
+  FAKE
+};
+
 /* Returns a PDE that points to page table PT. */
 static inline uint32_t pde_create (uint32_t *pt) {
   ASSERT (pg_ofs (pt) == 0);
@@ -103,5 +109,24 @@ static inline void *pte_get_page (uint32_t pte) {
   return ptov (pte & PTE_ADDR);
 }
 
-#endif /* threads/pte.h */
+#define PTE_MOST_SIG 31
 
+/* Stores a pointer to a supp_elem that stores info about
+ * where the page should be retrieved from.
+ * Use pte_retrieve_addr to get the pointer. */
+static inline uint32_t pte_create_fake(void *addr, bool _ UNUSED) {
+  ASSERT(is_kernel_vaddr((const void *) addr));
+  return (uint32_t) addr << PTE_P;
+}
+
+static inline struct supp_elem *pte_retrieve_addr(uint32_t pte) {
+  ASSERT(pte & ~PTE_P);
+  return (struct supp_elem *) ((pte >> 1) | (1 << PTE_MOST_SIG));
+}
+
+static inline uint32_t pte_create(enum pte_type type, void *page, bool writeable) {
+  uint32_t (*create[]) (void *, bool) = {pte_create_kernel, pte_create_user, pte_create_fake};
+  return create[type](page, writeable);
+}
+
+#endif /* threads/pte.h */
