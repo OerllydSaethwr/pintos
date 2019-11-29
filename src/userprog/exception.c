@@ -5,6 +5,8 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "syscall.h"
+#include "pagedir.h"
+#include "process.h"
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -150,14 +152,26 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-  /* To implement virtual memory, delete the rest of the function
+  struct supp_entry *supp_entry = pagedir_get_fake(thread_current()->pagedir, fault_addr);
+
+  printf("Fault address: %p\n", fault_addr);
+
+  if (supp_entry == NULL) {
+    /* To implement virtual memory, delete the rest of the function
      body, and replace it with code that brings in the page to
      which fault_addr refers. */
-  printf ("Page fault at %p: %s error %s page in %s context.\n",
-          fault_addr,
-          not_present ? "not present" : "rights violation",
-          write ? "writing" : "reading",
-          user ? "user" : "kernel");
-  kill (f);
+    printf ("Page fault at %p: %s error %s page in %s context.\n",
+            fault_addr,
+            not_present ? "not present" : "rights violation",
+            write ? "writing" : "reading",
+            user ? "user" : "kernel");
+    printf("Dying\n");
+    kill (f);
+    NOT_REACHED();
+  }
+
+  struct file *file = supp_entry->file;
+  lazy_load_page(file, 0, pg_round_down(fault_addr), false, supp_entry);
+
 }
 

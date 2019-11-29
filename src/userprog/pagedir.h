@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "threads/pte.h"
+#include "filesys/off_t.h"
 
 uint32_t *pagedir_create (void);
 void pagedir_destroy (uint32_t *pd);
@@ -16,7 +17,7 @@ bool pagedir_is_accessed (uint32_t *pd, const void *upage);
 void pagedir_set_accessed (uint32_t *pd, const void *upage, bool accessed);
 void pagedir_activate (uint32_t *pd);
 
-struct supp_elem *pagedir_get_fake(uint32_t *pd, const void *uaddr);
+struct supp_entry *pagedir_get_fake(uint32_t *pd, const void *uaddr);
 
 enum location {
   SWAP,
@@ -24,8 +25,9 @@ enum location {
   SHARED
 };
 
-struct supp_elem {
+struct supp_entry {
   struct file *file;
+  off_t pos;
   enum location location;
 };
 

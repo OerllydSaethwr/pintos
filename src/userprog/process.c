@@ -310,7 +310,6 @@ static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
                           bool writable);
-static bool lazy_load_page(struct file *file, uint8_t *upage, bool writable);
 
 /* Loads an ELF executable from FILE_NAME into the current thread.
    Stores the executable's entry point into *EIP
@@ -404,9 +403,12 @@ bool load (const char *file_name, void (**eip) (void), void **esp) {
                   read_bytes = 0;
                   zero_bytes = ROUND_UP (page_offset + phdr.p_memsz, PGSIZE);
                 }
-              if (!load_segment (file, file_page, (void *) mem_page,
+              if (i != 0 && !load_segment (file, file_page, (void *) mem_page,
                                  read_bytes, zero_bytes, writable))
                 goto done;
+              if (i == 0 && !lazy_load_page(file, file_page, (void *) mem_page, writable, NULL)) {
+                goto done;
+              }
             }
           else
             goto done;
@@ -536,7 +538,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   return true;
 }
 
-static bool lazy_load_page(struct file *file, uint8_t *upage, bool writable) {
+bool lazy_load_page(struct file *file, off_t ofs, uint8_t *upage, bool writable, struct supp_entry *supp_entry) {
 
   ASSERT (pg_ofs(upage) == 0);
 
@@ -546,14 +548,33 @@ static bool lazy_load_page(struct file *file, uint8_t *upage, bool writable) {
     return false;
   }
 
+  printf("Got kernel page\n");
+
+  file_seek(file, (supp_entry == NULL) ? ofs : supp_entry->pos);
+
   if (file == thread_current()->executable) {
     file_read(file, kpage, PGSIZE);
+    printf("File pos: %d\n", file_tell(file));
+    printf("Lazy loading executable\n");
   }
 
   /* Add the page to the process's address space. */
   if (!install_page(upage, kpage, writable)) {
     palloc_free_page(kpage);
     return false;
+  }
+
+  printf("Installed page successfully\n");
+
+  if (file_tell(file) < file_length(file)) {
+    if (supp_entry == NULL) {
+      supp_entry = malloc(sizeof(struct supp_entry));
+    }
+    supp_entry->pos = file_tell(file);
+    supp_entry->file = file;
+    supp_entry->location = FSYS;
+    pagedir_set_page(thread_current()->pagedir, upage + PGSIZE, supp_entry, writable, FAKE);
+    printf("Installed fake supp_entry\n");
   }
 
   return true;
