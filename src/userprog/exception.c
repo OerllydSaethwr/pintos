@@ -171,7 +171,7 @@ page_fault (struct intr_frame *f)
   }
 
   struct file *file = supp_entry->file;
-  lazy_load_page(file, 0, pg_round_down(fault_addr), false, supp_entry);
-
+  load_segment_lazy(file, supp_entry, pg_round_down(fault_addr));
+  //lazy_load_page(file, 0, pg_round_down(fault_addr), false, supp_entry);
 }
 
