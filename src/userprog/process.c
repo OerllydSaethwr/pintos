@@ -310,6 +310,7 @@ static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
                           bool writable);
+static bool lazy_load_page(struct file *file, uint8_t *upage, bool writable);
 
 /* Loads an ELF executable from FILE_NAME into the current thread.
    Stores the executable's entry point into *EIP
@@ -532,6 +533,29 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       zero_bytes -= page_zero_bytes;
       upage += PGSIZE;
     }
+  return true;
+}
+
+static bool lazy_load_page(struct file *file, uint8_t *upage, bool writable) {
+
+  ASSERT (pg_ofs(upage) == 0);
+
+  /* Get a page of memory. */
+  uint8_t *kpage = palloc_get_page(PAL_USER | PAL_ZERO);
+  if (kpage == NULL) {
+    return false;
+  }
+
+  if (file == thread_current()->executable) {
+    file_read(file, kpage, PGSIZE);
+  }
+
+  /* Add the page to the process's address space. */
+  if (!install_page(upage, kpage, writable)) {
+    palloc_free_page(kpage);
+    return false;
+  }
+
   return true;
 }
 
