@@ -7,6 +7,7 @@
 #include "syscall.h"
 #include "pagedir.h"
 #include "process.h"
+#include "filesys/file.h"
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -154,7 +155,7 @@ page_fault (struct intr_frame *f)
 
   struct supp_entry *supp_entry = pagedir_get_fake(thread_current()->pagedir, fault_addr);
 
-  printf("Fault address: %p\n", fault_addr);
+//  printf("Fault address: %p\n", fault_addr);
 
   if (supp_entry == NULL) {
     /* To implement virtual memory, delete the rest of the function
@@ -170,8 +171,6 @@ page_fault (struct intr_frame *f)
     NOT_REACHED();
   }
 
-  struct file *file = supp_entry->file;
-  load_segment_lazy(file, supp_entry, pg_round_down(fault_addr));
-  //lazy_load_page(file, 0, pg_round_down(fault_addr), false, supp_entry);
+  load_segment_lazy(supp_entry->file, supp_entry, pg_round_down(fault_addr));
 }
 
