@@ -1,6 +1,7 @@
 #ifndef THREADS_PTE_H
 #define THREADS_PTE_H
 
+#include <stddef.h>
 #include "threads/vaddr.h"
 
 /* Functions and macros for working with x86 hardware page
@@ -119,9 +120,8 @@ static inline uint32_t pte_create_fake(void *addr, bool _ UNUSED) {
   return (uint32_t) addr << PTE_P;
 }
 
-static inline struct supp_elem *pte_retrieve_addr(uint32_t pte) {
-  ASSERT(pte & ~PTE_P);
-  return (struct supp_elem *) ((pte >> 1) | (1 << PTE_MOST_SIG));
+static inline struct supp_entry *pte_retrieve_addr(uint32_t pte) {
+  return pte ? (struct supp_entry*) ((pte >> 1) | (1 << PTE_MOST_SIG)) : NULL;
 }
 
 static inline uint32_t pte_create(enum pte_type type, void *page, bool writeable) {

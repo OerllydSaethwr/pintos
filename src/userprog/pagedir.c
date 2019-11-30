@@ -102,7 +102,7 @@ pagedir_set_page (uint32_t *pd, void *upage, void *kpage, bool writable, enum pt
   uint32_t *pte;
 
   ASSERT (pg_ofs (upage) == 0);
-  ASSERT (pg_ofs (kpage) == 0);
+  //ASSERT (pg_ofs (kpage) == 0);
   ASSERT (is_user_vaddr (upage));
   ASSERT (vtop (kpage) >> PTSHIFT < init_ram_pages);
   ASSERT (pd != init_page_dir);
@@ -138,7 +138,7 @@ pagedir_get_page (uint32_t *pd, const void *uaddr)
     return NULL;
 }
 
-struct supp_elem *pagedir_get_fake(uint32_t *pd, const void *uaddr) {
+struct supp_entry *pagedir_get_fake(uint32_t *pd, const void *uaddr) {
   uint32_t *pte;
 
   ASSERT(is_user_vaddr(uaddr));
