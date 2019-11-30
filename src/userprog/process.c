@@ -403,9 +403,25 @@ bool load (const char *file_name, void (**eip) (void), void **esp) {
                   read_bytes = 0;
                   zero_bytes = ROUND_UP (page_offset + phdr.p_memsz, PGSIZE);
                 }
-              if (!load_segment (file, file_page, (void *) mem_page,
-                                 read_bytes, zero_bytes, writable))
+//              if (!load_segment (file, file_page, (void *) mem_page,
+//                                 read_bytes, zero_bytes, writable))
+//                goto done;
+//              printf("----------------------------------------\n"
+//                     "| Creating new supp_entry with\n"
+//                     "| read_bytes: %d\n"
+//                     "| zero_bytes: %d\n"
+//                     "| offset: %d\n"
+//                     "| vaddr: %p\n"
+//                     "----------------------------------------\n", read_bytes, zero_bytes, file_page, (void *) mem_page);
+              struct supp_entry *supp_entry = malloc(sizeof(struct supp_entry));
+              supp_entry->file = file;
+              supp_entry->read_bytes = read_bytes;
+              supp_entry->zero_bytes = zero_bytes;
+              supp_entry->writeable = writable;
+              supp_entry->pos = file_page;
+              if (!load_segment_lazy(file, supp_entry, (void *) mem_page)) {
                 goto done;
+              }
             }
           else
             goto done;
@@ -499,8 +515,10 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   ASSERT (ofs % PGSIZE == 0);
 
   file_seek (file, ofs);
+  int i = 0;
   while (read_bytes > 0 || zero_bytes > 0) 
     {
+    ASSERT(!i++);
       /* Calculate how to fill this page.
          We will read PAGE_READ_BYTES bytes from FILE
          and zero the final PAGE_ZERO_BYTES bytes. */
@@ -528,11 +546,45 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
         }
 
       /* Advance. */
+//      printf("read_bytes: %d, will be decremented by %lu\n", read_bytes, page_read_bytes);
+//      printf("zero_bytes: %d, will be decremented by %lu\n", zero_bytes, page_zero_bytes);
+//      printf("*********\n");
       read_bytes -= page_read_bytes;
       zero_bytes -= page_zero_bytes;
       upage += PGSIZE;
     }
   return true;
+}
+
+bool load_segment_lazy(struct file *file, struct supp_entry *supp_entry, uint8_t *upage) {
+  uint32_t read_bytes = supp_entry->read_bytes > PGSIZE ? PGSIZE : supp_entry->read_bytes;
+  uint32_t zero_bytes = PGSIZE - read_bytes;
+
+//  printf("**********\n");
+//  printf("///////////////////////%d\n", supp_entry->pos);
+
+  ASSERT(read_bytes + zero_bytes == PGSIZE);
+
+  bool success = load_segment(file, supp_entry->pos, upage, read_bytes, zero_bytes, supp_entry->writeable);
+
+  if (success) {
+//    printf("* Should be: %d\n", (uint32_t) (upage + PGSIZE) - 0x08048000);
+//    printf("* Actual value: %d\n", file_tell(file));
+    file_seek(file, file_tell(file) + zero_bytes);
+    supp_entry->pos = file_tell(file);
+    supp_entry->read_bytes -= read_bytes;
+    supp_entry->zero_bytes -= zero_bytes;
+    if (supp_entry->read_bytes == 0 && supp_entry->zero_bytes == 0) {
+      free(supp_entry);
+    }
+    else {
+      pagedir_set_page(thread_current()->pagedir, upage + PGSIZE, supp_entry, supp_entry->writeable, FAKE);
+    }
+  }
+
+//  printf("**********\n");
+
+  return success;
 }
 
 /* Create a minimal stack by mapping a zeroed page at the top of
@@ -573,5 +625,5 @@ install_page (void *upage, void *kpage, bool writable)
   /* Verify that there's not already a page at that virtual
      address, then map our page there. */
   return (pagedir_get_page (t->pagedir, upage) == NULL
-          && pagedir_set_page (t->pagedir, upage, kpage, writable));
+          && pagedir_set_page (t->pagedir, upage, kpage, writable, USER));
 }

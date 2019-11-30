@@ -5,7 +5,7 @@
 #include "threads/malloc.h"
 
 /* An open file. */
-struct file 
+struct file
   {
     struct inode *inode;        /* File's inode. */
     off_t pos;                  /* Current position. */
