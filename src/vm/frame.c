@@ -1,8 +1,9 @@
-//
-// Created by dmv18 on 27/11/2019.
-//
-
 #include <kernel/hash.h>
+#include "threads/palloc.h"
+#include "threads/vaddr.h"
+#include "threads/malloc.h"
+#include "threads/thread.h"
+
 #include "frame.h"
 #include "debug.h"
 
@@ -12,9 +13,10 @@ static bool frame_less_func(const struct hash_elem *,
                             void *);
 
 struct hash frame_table;
-
+struct lock frame_lock;
 void frame_init(void) {
   hash_init(&frame_table, frame_hash, frame_less_func, NULL);
+  lock_init(&frame_lock);
 }
 
 static unsigned frame_hash(const struct hash_elem *e, void *aux UNUSED) {
@@ -30,3 +32,36 @@ static bool frame_less_func(const struct hash_elem *a,
   return frame_a->frame_no < frame_b->frame_no;
 }
 
+/* Get a frame of memory for the current thread */
+void* get_frame_for_page(void *upage)
+{
+  ASSERT(is_user_vaddr(upage));
+  void *kpage = palloc_get_page(PAL_USER | PAL_ZERO);
+
+  lock_acquire(&frame_lock);
+
+  if (kpage == NULL) {
+    /* Evict to make space*/
+//    evict_frame();
+    kpage = palloc_get_page(PAL_USER | PAL_ZERO);
+    ASSERT(kpage != NULL);
+  }
+  struct frame *new= (struct frame *) malloc(sizeof(struct frame));
+
+  if (new == NULL) {
+    PANIC("Cannot allocated a new frame");
+  }
+
+  new->process = thread_current();
+  new->kaddr = kpage;
+  new->uaddr = upage;
+
+  struct hash_elem *success = hash_insert(&frame_table, &new->hash_elem);
+  lock_release (&frame_lock);
+
+  if (success != NULL) {
+    PANIC("Tried to insert already exisiting frame into table");
+  }
+
+  return kpage;
+}

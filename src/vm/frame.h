@@ -1,7 +1,3 @@
-//
-// Created by dmv18 on 27/11/2019.
-//
-
 #ifndef PINTOS_08_FRAME_H
 #define PINTOS_08_FRAME_H
 
@@ -12,9 +8,12 @@ struct frame {
   uint32_t frame_no;
   struct thread *process;
   struct hash_elem hash_elem;
+
+  void *kaddr;  /* Address in kernal */
+  void *uaddr;  /* Address in user space */
 };
 
 /* Initialize frame table */
 void frame_init(void);
-
+void* get_frame_for_page(void *upage);
 #endif //PINTOS_08_FRAME_H

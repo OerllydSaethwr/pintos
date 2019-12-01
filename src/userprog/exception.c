@@ -1,6 +1,7 @@
 #include "userprog/exception.h"
 #include <inttypes.h>
 #include <stdio.h>
+#include "threads/palloc.h"
 #include "userprog/gdt.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
@@ -8,6 +9,8 @@
 #include "pagedir.h"
 #include "process.h"
 #include "filesys/file.h"
+#include "vm/frame.h"
+#include "vm/utils.h"
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -131,6 +134,7 @@ page_fault (struct intr_frame *f)
   bool write;        /* True: access was write, false: access was read. */
   bool user;         /* True: access by user, false: access by kernel. */
   void *fault_addr;  /* Fault address. */
+//  struct thread* ct = thread_current();
 
   /* Obtain faulting address, the virtual address that was
      accessed to cause the fault.  It may point to code or to
@@ -156,19 +160,36 @@ page_fault (struct intr_frame *f)
   struct supp_entry *supp_entry = pagedir_get_fake(thread_current()->pagedir, fault_addr);
 
 //  printf("Fault address: %p\n", fault_addr);
+  void* up_address = pg_round_down(fault_addr);
+
+
+  /* Checking if page fault  caused by a syscall,
+   * if so need to use the saved esp address */
+//  void *esp = (f->eip > PHYS_BASE ? *ct->esp : f->esp);
+
 
   if (supp_entry == NULL) {
     /* To implement virtual memory, delete the rest of the function
      body, and replace it with code that brings in the page to
      which fault_addr refers. */
-    printf ("Page fault at %p: %s error %s page in %s context.\n",
-            fault_addr,
-            not_present ? "not present" : "rights violation",
-            write ? "writing" : "reading",
-            user ? "user" : "kernel");
-    printf("Dying\n");
-    kill (f);
-    NOT_REACHED();
+
+    /* check whether it's a valid stack access */
+    printf("fa: %p , sp: %p esp: %p\n", fault_addr, f->esp, f->esp);
+    if (verify_stack_access(fault_addr, f->esp)) {
+      printf ("new stack");
+      void *kernel_address = palloc_get_page (PAL_USER | PAL_ZERO);
+//      spt_insert(&ct->spt, up_address, LOADED);
+      install_page(up_address, kernel_address, true);
+    } else {
+      printf ("Page fault at %p: %s error %s page in %s context.\n",
+              fault_addr,
+              not_present ? "not present" : "rights violation",
+              write ? "writing" : "reading",
+              user ? "user" : "kernel");
+      kill (f);
+      NOT_REACHED();
+
+    }
   }
 
   load_segment_lazy(supp_entry->file, supp_entry, pg_round_down(fault_addr));

@@ -109,6 +109,10 @@ struct thread
     struct file *executable;              /* Executable used by process */
 #endif
 
+#ifdef VM
+    void **esp;                            /* Pointer syscal stack pointer */
+#endif
+
     /* Owned by thread.c. */
     unsigned magic;                       /* Detects stack overflow. */
   };
