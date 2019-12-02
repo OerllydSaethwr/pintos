@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "vm/frame.h"
+#include "vm/mmap.h"
 #include "devices/kbd.h"
 #include "devices/input.h"
 #include "devices/serial.h"
@@ -115,6 +116,7 @@ main (void)
   exception_init ();
   syscall_init ();
   frame_init();
+  mmap_table_init();
 #endif
 
   /* Start thread scheduler and enable interrupts. */

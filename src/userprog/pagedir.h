@@ -28,9 +28,9 @@ enum location {
 struct supp_entry {
   uint32_t start_of_segment;
   struct file *file;
-  off_t pos;
+  //off_t pos;
   uint32_t read_bytes;
-  uint32_t zero_bytes;
+  //uint32_t zero_bytes;
   bool writeable;
   enum location location;
 };

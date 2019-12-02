@@ -15,7 +15,7 @@
 #define ARG_NUM_CLOSE 1
 #define INVALID -1
 #define STATUS_KILLED -1
-
+typedef int mapid_t;
 void syscall_init (void);
 void kill_process(void);
 #endif

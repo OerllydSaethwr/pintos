@@ -416,9 +416,9 @@ bool load (const char *file_name, void (**eip) (void), void **esp) {
               struct supp_entry *supp_entry = malloc(sizeof(struct supp_entry));
               supp_entry->file = file;
               supp_entry->read_bytes = read_bytes;
-              supp_entry->zero_bytes = zero_bytes;
+              //supp_entry->zero_bytes = zero_bytes;
               supp_entry->writeable = writable;
-              supp_entry->pos = file_page;
+              //supp_entry->pos = file_page;
               supp_entry->start_of_segment = mem_page;
               create_fake_entries((void *) mem_page, read_bytes, zero_bytes, supp_entry);
               if (!load_segment_lazy(file, supp_entry, (void *) mem_page)) {
@@ -562,12 +562,12 @@ bool load_segment_lazy(struct file *file, struct supp_entry *supp_entry, uint8_t
 
   uint32_t noOfPages = (uint32_t) upage - supp_entry->start_of_segment;
   uint32_t read_bytes = (supp_entry->read_bytes - noOfPages) > PGSIZE ? PGSIZE : (supp_entry->read_bytes - noOfPages);
-  if (read_bytes < 0) {
+/*  if (read_bytes < 0) {
     read_bytes = supp_entry->read_bytes;
     while (read_bytes > PGSIZE) {
       read_bytes -= PGSIZE;
     }
-  }
+  }*/
   uint32_t zero_bytes = PGSIZE - read_bytes;
 
 

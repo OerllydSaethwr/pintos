@@ -11,6 +11,7 @@
 #include "threads/thread.h"
 #include "threads/malloc.h"
 #include "userprog/syscall.h"
+#include "vm/mmap.h"
 
 static void check_pointer (void *pointer);
 
@@ -48,6 +49,9 @@ static void write (void **);
 
 static struct file_descriptor *file_descriptor_finder (int fd);
 
+static bool overlaps_stack_or_mapped_files(uint32_t, void *);
+
+
 static struct lock filesystem_lock;
 
 /* All delegate functions have the same function signatures (take the same
@@ -59,6 +63,8 @@ static void (*fpa[13]) (void **argv) = {
   halt, exit, exec, wait, create, remove, open, filesize, read, write, seek,
   tell, close
 };
+
+bool overlaps_stack_or_mapped_files(uint32_t file_size, void *adrr);
 
 /* Argument counts of handler function. */
 static int argument_counts[] = {ARG_NUM_HALT, ARG_NUM_EXIT, ARG_NUM_EXEC,
@@ -324,4 +330,55 @@ static struct file_descriptor *file_descriptor_finder (int fd) {
   }
 
   return NULL;
+}
+
+mapid_t mmap (int fd, void *addr) {
+  struct file_descriptor* file_desc = file_descriptor_finder(fd);
+
+  if (file_desc) {
+    uint32_t size = file_length(file_desc->actual_file);
+    if (!(size == 0 || addr == 0 || ((uint32_t) addr % PGSIZE != 0) || overlaps_stack_or_mapped_files(size, addr))) {
+
+      // checks if file has extra bytes and end doesn't load them in
+      if (size % PGSIZE != 0) {
+        size = (size / PGSIZE) * PGSIZE;
+      }
+
+      struct supp_entry* supp_entry = malloc(sizeof(struct supp_entry));
+      supp_entry->file = file_desc->actual_file;
+      supp_entry->read_bytes = size;
+      supp_entry->start_of_segment = (uint32_t) addr;
+      supp_entry->location = FSYS;
+
+      // temp set to false
+      supp_entry->writeable = false;
+
+      create_fake_entries(addr, size, 0, supp_entry);
+
+      load_segment_lazy(file_desc->actual_file, supp_entry, addr);
+
+      struct mmap_entry* me = malloc(sizeof(struct mmap_entry));
+      me->supp_entry = supp_entry;
+      // temp solution for stack overflow
+      if (++mmap_table->map_id == 0) {
+        mmap_table->map_id = 1;
+      }
+      me->map_id = ++mmap_table->map_id;
+      me->location_of_file = (uint32_t) addr;
+
+      hash_insert(&mmap_table->mmap_table, &me->hash_elem);
+
+      return me->map_id;
+    }
+  }
+
+  return INVALID;
+}
+
+void munmap (mapid_t mapping) {
+}
+
+
+static bool overlaps_stack_or_mapped_files(uint32_t file_size, void *adrr) {
+  return 0;
 }
