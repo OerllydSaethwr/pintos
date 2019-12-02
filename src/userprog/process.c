@@ -419,7 +419,6 @@ bool load (const char *file_name, void (**eip) (void), void **esp) {
               supp_entry->zero_bytes = zero_bytes;
               supp_entry->writeable = writable;
               supp_entry->pos = file_page;
-              supp_entry->initial_page = mem_page;
               if (!load_segment_lazy(file, supp_entry, (void *) mem_page)) {
                 goto done;
               }

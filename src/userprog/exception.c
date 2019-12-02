@@ -159,7 +159,7 @@ page_fault (struct intr_frame *f)
 
   struct supp_entry *supp_entry = pagedir_get_fake(thread_current()->pagedir, fault_addr);
 
-//  printf("Fault address: %p\n", fault_addr);
+  //printf("Fault address: %p\n", fault_addr);
   void* up_address = pg_round_down(fault_addr);
 
 
@@ -174,10 +174,10 @@ page_fault (struct intr_frame *f)
      which fault_addr refers. */
 
     /* check whether it's a valid stack access */
-    printf("fa: %p , sp: %p esp: %p\n", fault_addr, f->esp, f->esp);
+    //printf("fa: %p , sp: %p esp: %p\n", fault_addr, f->esp, f->esp);
     if (verify_stack_access(fault_addr, f->esp)) {
-      printf ("new stack");
-      void *kernel_address = palloc_get_page (PAL_USER | PAL_ZERO);
+      //printf ("new stack\n");
+      void *kernel_address = get_frame_for_page (up_address);
 //      spt_insert(&ct->spt, up_address, LOADED);
       install_page(up_address, kernel_address, true);
     } else {
@@ -188,10 +188,9 @@ page_fault (struct intr_frame *f)
               user ? "user" : "kernel");
       kill (f);
       NOT_REACHED();
-
     }
+  } else {
+    load_segment_lazy(supp_entry->file, supp_entry, pg_round_down(fault_addr));
   }
-
-  load_segment_lazy(supp_entry->file, supp_entry, pg_round_down(fault_addr));
 }
 
