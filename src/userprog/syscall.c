@@ -47,6 +47,10 @@ static void wait (void **);
 
 static void write (void **);
 
+static void mmap(void **);
+
+static void munmap(void **);
+
 static struct file_descriptor *file_descriptor_finder (int fd);
 
 static bool overlaps_stack_or_mapped_files(uint32_t, void *);
@@ -59,9 +63,9 @@ static struct lock filesystem_lock;
  * in one line */
 
 /* Array of function pointers the handler delegates to. */
-static void (*fpa[13]) (void **argv) = {
+static void (*fpa[15]) (void **argv) = {
   halt, exit, exec, wait, create, remove, open, filesize, read, write, seek,
-  tell, close
+  tell, close, mmap, munmap
 };
 
 bool overlaps_stack_or_mapped_files(uint32_t file_size, void *adrr);
@@ -71,7 +75,7 @@ static int argument_counts[] = {ARG_NUM_HALT, ARG_NUM_EXIT, ARG_NUM_EXEC,
                                 ARG_NUM_WAIT, ARG_NUM_CREATE, ARG_NUM_REMOVE,
                                 ARG_NUM_OPEN, ARG_NUM_FILESIZE, ARG_NUM_READ,
                                 ARG_NUM_WRITE, ARG_NUM_SEEK, ARG_NUM_TELL,
-                                ARG_NUM_CLOSE};
+                                ARG_NUM_CLOSE, ARG_NUM_MMAP, ARG_NUM_MUNMAP};
 
 void syscall_init (void) {
   lock_init (&filesystem_lock);
@@ -332,7 +336,11 @@ static struct file_descriptor *file_descriptor_finder (int fd) {
   return NULL;
 }
 
-mapid_t mmap (int fd, void *addr) {
+static void mmap (void **argv) {
+  int fd = *(int *) argv[0];
+  void *addr = *(void **) argv[1];
+  int *eax = *(int **) argv[2];
+
   struct file_descriptor* file_desc = file_descriptor_finder(fd);
 
   if (file_desc) {
@@ -365,14 +373,15 @@ mapid_t mmap (int fd, void *addr) {
 
       hash_insert(&mmap_table->mmap_table, &me->hash_elem);
 
-      return me->map_id;
+      *eax = me->map_id;
     }
   }
 
-  return INVALID;
+  *eax = INVALID;
 }
 
-void munmap (mapid_t mapping) {
+static void munmap (void **argv) {
+  mapid_t mapping = *(mapid_t *) argv[0];
 }
 
 
