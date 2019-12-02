@@ -419,6 +419,7 @@ bool load (const char *file_name, void (**eip) (void), void **esp) {
               supp_entry->zero_bytes = zero_bytes;
               supp_entry->writeable = writable;
               supp_entry->pos = file_page;
+              supp_entry->initial_page = mem_page;
               if (!load_segment_lazy(file, supp_entry, (void *) mem_page)) {
                 goto done;
               }
@@ -563,6 +564,8 @@ bool load_segment_lazy(struct file *file, struct supp_entry *supp_entry, uint8_t
 
   ASSERT(read_bytes + zero_bytes == PGSIZE);
 
+  
+
   bool success = load_segment(file, supp_entry->pos, upage, read_bytes, zero_bytes, supp_entry->writeable);
 
   if (success) {
@@ -576,7 +579,12 @@ bool load_segment_lazy(struct file *file, struct supp_entry *supp_entry, uint8_t
       free(supp_entry);
     }
     else {
-      pagedir_set_page(thread_current()->pagedir, upage + PGSIZE, supp_entry, supp_entry->writeable, FAKE);
+      for (int i = 1; i * PGSIZE <= supp_entry->read_bytes + supp_entry->zero_bytes; i++) {
+        if (!pagedir_get_page(thread_current()->pagedir, upage + PGSIZE)) {
+          //printf("Installing fake address in pd at: %p\n", upage + PGSIZE * i);
+          pagedir_set_page(thread_current()->pagedir, upage + PGSIZE * i, supp_entry, supp_entry->writeable, FAKE);
+        }
+      }
     }
   }
 
