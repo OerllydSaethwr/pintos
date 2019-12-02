@@ -13,7 +13,7 @@ static bool mmap_less_func(const struct hash_elem *,
 
 
 void mmap_table_init(void) {
-  mmap_table = malloc(sizeof(mmap_table));
+  mmap_table = malloc(sizeof(struct mmap_table));
   hash_init(&mmap_table->mmap_table, mmap_hash, mmap_less_func, NULL);
   mmap_table->map_id = 1;
 }

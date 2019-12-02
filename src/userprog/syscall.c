@@ -349,9 +349,7 @@ mapid_t mmap (int fd, void *addr) {
       supp_entry->read_bytes = size;
       supp_entry->start_of_segment = (uint32_t) addr;
       supp_entry->location = FSYS;
-
-      // temp set to false
-      supp_entry->writeable = false;
+      supp_entry->writeable = true;
 
       create_fake_entries(addr, size, 0, supp_entry);
 
@@ -378,6 +376,13 @@ void munmap (mapid_t mapping) {
 }
 
 
-static bool overlaps_stack_or_mapped_files(uint32_t file_size, void *adrr) {
-  return 0;
+static bool overlaps_stack_or_mapped_files(uint32_t file_size, void *addr) {
+  uint32_t curr_bytes = 0;
+  while (file_size > curr_bytes) {
+    if (pagedir_get_page(thread_current()->pagedir, addr + curr_bytes)) {
+      return false;
+    }
+    curr_bytes += PGSIZE;
+  }
+  return true;
 }
