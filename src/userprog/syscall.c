@@ -358,8 +358,7 @@ mapid_t mmap (int fd, void *addr) {
       load_segment_lazy(file_desc->actual_file, supp_entry, addr);
 
       struct mmap_entry* me = malloc(sizeof(struct mmap_entry));
-      me->supp_entry = supp_entry;
-      // temp solution for stack overflow
+      // temp solution for int overflow
       if (++mmap_table->map_id == 0) {
         mmap_table->map_id = 1;
       }

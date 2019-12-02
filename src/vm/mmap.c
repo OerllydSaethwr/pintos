@@ -34,7 +34,6 @@ static bool mmap_less_func(const struct hash_elem *a,
 
 static void delete_and_free (struct hash_elem *e, void *aux UNUSED) {
   struct mmap_entry *me = hash_entry (e, struct mmap_entry, hash_elem);
-  file_close (me->supp_entry->file);
   free (me);
 }
 
