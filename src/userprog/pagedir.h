@@ -26,7 +26,7 @@ enum location {
 };
 
 struct supp_entry {
-  uint32_t start_of_segment;
+  void *start_of_segment;
   struct file *file;
   //off_t pos;
   uint32_t read_bytes;

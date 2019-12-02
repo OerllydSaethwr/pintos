@@ -16,7 +16,7 @@ struct mmap_table {
 
 struct mmap_entry {
   struct hash_elem hash_elem;
-  uint32_t location_of_file;
+  uint32_t *location_of_file;
   mapid_t map_id;
 };
 
@@ -24,6 +24,6 @@ void mmap_table_init(void);
 void mmap_table_free(void);
 
 
-static struct mmap_table *mmap_table;
+struct mmap_table *mmap_table;
 
 #endif //PINTOS_08_MMAP_H

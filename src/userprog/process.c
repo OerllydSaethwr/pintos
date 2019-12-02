@@ -419,7 +419,7 @@ bool load (const char *file_name, void (**eip) (void), void **esp) {
               //supp_entry->zero_bytes = zero_bytes;
               supp_entry->writeable = writable;
               //supp_entry->pos = file_page;
-              supp_entry->start_of_segment = mem_page;
+              supp_entry->start_of_segment = (void *) mem_page;
               create_fake_entries((void *) mem_page, read_bytes, zero_bytes, supp_entry);
               if (!load_segment_lazy(file, supp_entry, (void *) mem_page)) {
                 goto done;
@@ -560,7 +560,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 
 bool load_segment_lazy(struct file *file, struct supp_entry *supp_entry, uint8_t *upage) {
 
-  uint32_t noOfPages = (uint32_t) upage - supp_entry->start_of_segment;
+  uint32_t noOfPages = (uint32_t) upage - (uint32_t) supp_entry->start_of_segment;
   uint32_t read_bytes = (supp_entry->read_bytes - noOfPages) > PGSIZE ? PGSIZE : (supp_entry->read_bytes - noOfPages);
 /*  if (read_bytes < 0) {
     read_bytes = supp_entry->read_bytes;

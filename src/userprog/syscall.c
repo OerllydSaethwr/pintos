@@ -53,7 +53,7 @@ static void munmap(void **);
 
 static struct file_descriptor *file_descriptor_finder (int fd);
 
-static bool overlaps_stack_or_mapped_files(uint32_t, void *);
+static bool overlapping_mapped_mem(uint32_t file_size, void *upage);
 
 
 static struct lock filesystem_lock;
@@ -68,7 +68,6 @@ static void (*fpa[15]) (void **argv) = {
   tell, close, mmap, munmap
 };
 
-bool overlaps_stack_or_mapped_files(uint32_t file_size, void *adrr);
 
 /* Argument counts of handler function. */
 static int argument_counts[] = {ARG_NUM_HALT, ARG_NUM_EXIT, ARG_NUM_EXEC,
@@ -338,15 +337,17 @@ static struct file_descriptor *file_descriptor_finder (int fd) {
 
 static void mmap (void **argv) {
   int fd = *(int *) argv[0];
-  void *addr = *(void **) argv[1];
-  int *eax = *(int **) argv[2];
+  void *addr = argv[1];
+  int *eax = (int *) argv[2];
 
   struct file_descriptor* file_desc = file_descriptor_finder(fd);
 
   if (file_desc) {
     uint32_t size = file_length(file_desc->actual_file);
-    if (!(size == 0 || addr == 0 || ((uint32_t) addr % PGSIZE != 0) || overlaps_stack_or_mapped_files(size, addr))) {
-
+    void *valp = (void *) (*(uint32_t  *) (addr));
+    bool page_aligned = (( (PHYS_BASE - valp) % PGSIZE) == 0);
+    if (size > 0 && valp > 0 && page_aligned &&
+        !overlapping_mapped_mem(size, valp)) {
       // checks if file has extra bytes and end doesn't load them in
       if (size % PGSIZE != 0) {
         size = (size / PGSIZE) * PGSIZE;
@@ -355,25 +356,26 @@ static void mmap (void **argv) {
       struct supp_entry* supp_entry = malloc(sizeof(struct supp_entry));
       supp_entry->file = file_desc->actual_file;
       supp_entry->read_bytes = size;
-      supp_entry->start_of_segment = (uint32_t) addr;
+      supp_entry->start_of_segment = valp;
       supp_entry->location = FSYS;
       supp_entry->writeable = true;
 
-      create_fake_entries(addr, size, 0, supp_entry);
+      create_fake_entries(valp, size, 0, supp_entry);
 
-      load_segment_lazy(file_desc->actual_file, supp_entry, addr);
+      load_segment_lazy(file_desc->actual_file, supp_entry, valp);
 
       struct mmap_entry* me = malloc(sizeof(struct mmap_entry));
       // temp solution for int overflow
-      if (++mmap_table->map_id == 0) {
+      if (++(mmap_table->map_id) == 0) {
         mmap_table->map_id = 1;
       }
       me->map_id = ++mmap_table->map_id;
-      me->location_of_file = (uint32_t) addr;
+      me->location_of_file = valp;
 
       hash_insert(&mmap_table->mmap_table, &me->hash_elem);
 
       *eax = me->map_id;
+      return;
     }
   }
 
@@ -385,13 +387,16 @@ static void munmap (void **argv) {
 }
 
 
-static bool overlaps_stack_or_mapped_files(uint32_t file_size, void *addr) {
+static bool overlapping_mapped_mem(uint32_t file_size, void *upage) {
   uint32_t curr_bytes = 0;
   while (file_size > curr_bytes) {
-    if (pagedir_get_page(thread_current()->pagedir, addr + curr_bytes)) {
-      return false;
+    uint32_t new_address = (uint32_t) upage + curr_bytes;
+    if (pagedir_get_page(thread_current()->pagedir, (void *) (new_address)) != NULL) {
+      //printf("vp : %p\n", (void *) new_address);
+      //printf("returning false\n");
+      return true;
     }
     curr_bytes += PGSIZE;
   }
-  return true;
+  return false;
 }

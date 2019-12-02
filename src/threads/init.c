@@ -116,8 +116,9 @@ main (void)
   exception_init ();
   syscall_init ();
   frame_init();
-  mmap_table_init();
 #endif
+
+  mmap_table_init();
 
   /* Start thread scheduler and enable interrupts. */
   thread_start ();
