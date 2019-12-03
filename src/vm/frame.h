@@ -16,5 +16,4 @@ struct frame {
 /* Initialize frame table */
 void frame_init(void);
 void *get_frame_for_page(void *upage, PALLOC_FLAGS);
-static  uint32_t FRAME_NUM = 0;
-#endif //PINTOS_08_FRAME_H
+#endif

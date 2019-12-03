@@ -321,8 +321,8 @@ bool load (const char *file_name, void (**eip) (void), void **esp) {
   struct Elf32_Ehdr ehdr;
   struct file *file = NULL;
   off_t file_ofs;
-  bool success = false;
   int i;
+  bool success = false;
 
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
@@ -356,7 +356,7 @@ bool load (const char *file_name, void (**eip) (void), void **esp) {
 
   /* Read program headers. */
   file_ofs = ehdr.e_phoff;
-  for (i = 0; i < ehdr.e_phnum; i++) 
+  for ( i = 0; i < ehdr.e_phnum; i++)
     {
       struct Elf32_Phdr phdr;
 
@@ -516,8 +516,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   //printf("loading page into: %p\n", upage);
 
   file_seek (file, ofs);
-  int i = 0;
-  while (read_bytes > 0 || zero_bytes > 0) 
+  while (read_bytes > 0 || zero_bytes > 0)
     {
       /* Calculate how to fill this page.
          We will read PAGE_READ_BYTES bytes from FILE

@@ -165,7 +165,8 @@ page_fault (struct intr_frame *f)
 
   /* Checking if page fault  caused by a syscall,
    * if so need to use the saved esp address */
-  void *esp = (f->eip > PHYS_BASE ? *ct->esp : f->esp);
+
+  void *esp = ((void *) f->eip >  PHYS_BASE ? *ct->esp : f->esp);
 //  printf("fa: %p , sp: %p esp: %p eip: %p phyb: %p\n", fault_addr, esp, f->esp, f->eip, PHYS_BASE);
 
 
@@ -175,6 +176,7 @@ page_fault (struct intr_frame *f)
      which fault_addr refers. */
 
     /* check whether it's a valid stack access */
+
     if (verify_stack_access(fault_addr, esp)) {
 //      printf ("new stack\n");
       void *kernel_address = get_frame_for_page (up_address, PAL_USER);

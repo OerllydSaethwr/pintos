@@ -10,6 +10,7 @@ static unsigned frame_hash(const struct hash_elem *, void *);
 static bool frame_less_func(const struct hash_elem *,
                             const struct hash_elem *,
                             void *);
+static uint32_t FRAME_NUM = 0;
 
 struct hash frame_table;
 struct lock frame_lock;

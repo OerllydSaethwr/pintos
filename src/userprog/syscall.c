@@ -85,9 +85,8 @@ void syscall_init (void) {
 
 static void syscall_handler (struct intr_frame *f) {
   int *sp = f->esp;
-  thread_current()->esp = &f->esp;
-
   check_pointer (sp);
+  thread_current()->esp = &f->esp;
 
   /* Creating argument array */
   int argc = argument_counts[*sp];
@@ -100,8 +99,6 @@ static void syscall_handler (struct intr_frame *f) {
   for (int i = 0; i < argc; ++i) {
     check_pointer (argv[i]);
   }
-
-
 
   /* Delegating to specific syscall */
   fpa[*sp] (argv);
@@ -313,9 +310,10 @@ static void check_pointer (void *pointer) {
 }
 
 static bool valid_pointer (void *pointer) {
-  return pointer != NULL
-            && is_user_vaddr (pointer)
-              && pagedir_get_page(thread_current()->pagedir, pointer);
+
+  return (pointer != NULL && is_user_vaddr (pointer) && (pagedir_get_page
+  (thread_current()->pagedir, pointer) || verify_stack_access (pointer,
+    *thread_current()->esp)));
 }
 
 void kill_process (void) {
