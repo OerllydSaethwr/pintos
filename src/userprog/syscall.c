@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <threads/synch.h>
 #include <threads/vaddr.h>
+#include "lib/round.h"
 #include "vm/utils.h"
 #include "pagedir.h"
 #include "process.h"
@@ -352,28 +353,25 @@ static void mmap (void **argv) {
     bool page_aligned = (( (PHYS_BASE - valp) % PGSIZE) == 0);
     if (size > 0 && valp > 0 && page_aligned &&
         !overlapping_mapped_mem(size, valp)) {
-      // checks if file has extra bytes and end doesn't load them in
-      if (size % PGSIZE != 0) {
-        size = (size / PGSIZE) * PGSIZE;
-      }
 
       struct supp_entry* supp_entry = malloc(sizeof(struct supp_entry));
       supp_entry->file = file_desc->actual_file;
       supp_entry->read_bytes = size;
-      supp_entry->initial_page = valp;
+      supp_entry->initial_page = (uint32_t) valp;
+      supp_entry->segment_offset = 0;
       supp_entry->location = FSYS;
       supp_entry->writeable = true;
 
-      create_fake_entries(valp, size, 0, supp_entry);
+      create_fake_entries(valp, size, PGSIZE - (size % PGSIZE), supp_entry);
 
       load_segment_lazy(file_desc->actual_file, supp_entry, valp);
 
       struct mmap_entry* me = malloc(sizeof(struct mmap_entry));
       // temp solution for int overflow
       if (++(mmap_table->map_id) == 0) {
-        mmap_table->map_id = 1;
+        mmap_table->map_id = 2;
       }
-      me->map_id = ++mmap_table->map_id;
+      me->map_id = mmap_table->map_id;
       me->location_of_file = valp;
 
       hash_insert(&mmap_table->mmap_table, &me->hash_elem);
@@ -395,11 +393,13 @@ static bool overlapping_mapped_mem(uint32_t file_size, void *upage) {
   uint32_t curr_bytes = 0;
   while (file_size > curr_bytes) {
     uint32_t new_address = (uint32_t) upage + curr_bytes;
-    if (pagedir_get_page(thread_current()->pagedir, (void *) (new_address)) != NULL) {
-      //printf("vp : %p\n", (void *) new_address);
-      //printf("returning false\n");
+    void *get_page = pagedir_get_page(thread_current()->pagedir, (void *) (new_address));
+    void *get_fake = pagedir_get_fake(thread_current()->pagedir, (void *) new_address);
+
+    if (get_page != NULL || get_fake != NULL) {
       return true;
     }
+
     curr_bytes += PGSIZE;
   }
   return false;
