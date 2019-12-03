@@ -527,7 +527,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
       /* Get a page of memory. */
-      uint8_t *kpage = get_frame_for_page (upage, PAL_USER);
+      uint8_t *kpage = falloc_get_frame(upage, PAL_USER);
       if (kpage == NULL)
         return false;
 
@@ -596,7 +596,7 @@ setup_stack (void **esp)
   uint8_t *kpage;
   bool success = false;
 
-  kpage = get_frame_for_page(((uint8_t *) PHYS_BASE) - PGSIZE,  PAL_USER);
+  kpage = falloc_get_frame(((uint8_t *) PHYS_BASE) - PGSIZE, PAL_USER);
 
   if (kpage != NULL) 
     {

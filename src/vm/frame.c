@@ -33,7 +33,7 @@ static bool frame_less_func(const struct hash_elem *a,
 }
 
 /* Get a frame of memory for the current thread */
-void* get_frame_for_page(void *upage, PALLOC_FLAGS flag)
+void* falloc_get_frame(void *upage, PALLOC_FLAGS flag)
 {
   ASSERT(is_user_vaddr(upage));
   void *kpage = palloc_get_page(PAL_USER | flag);

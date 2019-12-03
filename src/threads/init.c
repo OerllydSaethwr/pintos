@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "vm/swap.h"
 #include "vm/frame.h"
 #include "vm/mmap.h"
 #include "devices/kbd.h"
@@ -115,7 +116,6 @@ main (void)
 #ifdef USERPROG
   exception_init ();
   syscall_init ();
-  frame_init();
 #endif
 
   /* Start thread scheduler and enable interrupts. */
@@ -128,6 +128,11 @@ main (void)
   ide_init ();
   locate_block_devices ();
   filesys_init (format_filesys);
+#endif
+
+#ifdef VM
+  frame_init();
+  swap_init();
 #endif
 
   printf ("Boot complete.\n");

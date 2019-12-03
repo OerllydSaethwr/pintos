@@ -15,5 +15,5 @@ struct frame {
 
 /* Initialize frame table */
 void frame_init(void);
-void *get_frame_for_page(void *upage, PALLOC_FLAGS);
+void *falloc_get_frame(void *upage, PALLOC_FLAGS flag);
 #endif

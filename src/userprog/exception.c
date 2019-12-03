@@ -169,7 +169,7 @@ page_fault (struct intr_frame *f)
     } else if (supp_entry != NULL) {
       load_segment_lazy (supp_entry->file, supp_entry, pg_round_down (fault_addr));
     } else if (is_stack_access(fault_addr, esp)) {
-      void *kernel_address = get_frame_for_page (up_address, PAL_USER);
+      void *kernel_address = falloc_get_frame(up_address, PAL_USER);
       install_page (up_address, kernel_address, true);
     } else {
       goto die;
