@@ -312,7 +312,9 @@ static void check_pointer (void *pointer) {
 }
 
 static bool valid_pointer (void *pointer) {
-  return is_user_vaddr (pointer);
+  return pointer != NULL
+            && is_user_vaddr (pointer)
+              && pagedir_get_page(thread_current()->pagedir, pointer);
 }
 
 void kill_process (void) {
@@ -358,7 +360,7 @@ static void mmap (void **argv) {
       struct supp_entry* supp_entry = malloc(sizeof(struct supp_entry));
       supp_entry->file = file_desc->actual_file;
       supp_entry->read_bytes = size;
-      supp_entry->start_of_segment = valp;
+      supp_entry->initial_page = valp;
       supp_entry->location = FSYS;
       supp_entry->writeable = true;
 

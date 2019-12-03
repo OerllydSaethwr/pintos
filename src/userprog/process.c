@@ -419,7 +419,7 @@ bool load (const char *file_name, void (**eip) (void), void **esp) {
               //supp_entry->zero_bytes = zero_bytes;
               supp_entry->writeable = writable;
               //supp_entry->pos = file_page;
-              supp_entry->start_of_segment = (void *) mem_page;
+              supp_entry->initial_page = mem_page;
               create_fake_entries((void *) mem_page, read_bytes, zero_bytes, supp_entry);
               if (!load_segment_lazy(file, supp_entry, (void *) mem_page)) {
                 goto done;
@@ -520,7 +520,6 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   int i = 0;
   while (read_bytes > 0 || zero_bytes > 0) 
     {
-    ASSERT(!i++);
       /* Calculate how to fill this page.
          We will read PAGE_READ_BYTES bytes from FILE
          and zero the final PAGE_ZERO_BYTES bytes. */
@@ -559,25 +558,18 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 }
 
 bool load_segment_lazy(struct file *file, struct supp_entry *supp_entry, uint8_t *upage) {
+  uint32_t offset = (uint32_t) upage - supp_entry->initial_page;
 
-  uint32_t noOfPages = (uint32_t) upage - (uint32_t) supp_entry->start_of_segment;
-  uint32_t read_bytes = (supp_entry->read_bytes - noOfPages) > PGSIZE ? PGSIZE : (supp_entry->read_bytes - noOfPages);
-/*  if (read_bytes < 0) {
-    read_bytes = supp_entry->read_bytes;
-    while (read_bytes > PGSIZE) {
-      read_bytes -= PGSIZE;
-    }
-  }*/
+  uint32_t read_bytes = offset > supp_entry->read_bytes ? 0 : (supp_entry->read_bytes - offset);
+  read_bytes = read_bytes > PGSIZE ? PGSIZE : read_bytes;
   uint32_t zero_bytes = PGSIZE - read_bytes;
-
-
 
 //  printf("**********\n");
 //  printf("///////////////////////%d\n", supp_entry->pos);
 
   ASSERT(read_bytes + zero_bytes == PGSIZE);
 
-  bool success = load_segment(file, noOfPages, upage, read_bytes, zero_bytes, supp_entry->writeable);
+  bool success = load_segment(file, offset + supp_entry->segment_offset, upage, read_bytes, zero_bytes, supp_entry->writeable);
 //  printf("**********\n");
   return success;
 }
