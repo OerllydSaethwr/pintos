@@ -134,7 +134,6 @@ page_fault (struct intr_frame *f)
   bool write;        /* True: access was write, false: access was read. */
   bool user;         /* True: access by user, false: access by kernel. */
   void *fault_addr;  /* Fault address. */
-  struct thread* ct = thread_current();
 
   /* Obtain faulting address, the virtual address that was
      accessed to cause the fault.  It may point to code or to
@@ -156,48 +155,24 @@ page_fault (struct intr_frame *f)
   not_present = (f->error_code & PF_P) == 0;
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
+
+  void *up_address = pg_round_down (fault_addr);
+  void *esp = ((void *) f->eip > PHYS_BASE ? *thread_current()->esp : f->esp);
+
   if(is_user_vaddr (fault_addr)) {
-    struct supp_entry *supp_entry = pagedir_get_fake (
-      thread_current ()->pagedir, fault_addr);
-
-    //printf("Fault address: %p\n", fault_addr);
-    void *up_address = pg_round_down (fault_addr);
-
-
-    /* Checking if page fault  caused by a syscall,
-     * if so need to use the saved esp address */
-
-    void *esp = ((void *) f->eip > PHYS_BASE ? *ct->esp : f->esp);
-//  printf("fa: %p , sp: %p esp: %p eip: %p phyb: %p\n", fault_addr, esp, f->esp, f->eip, PHYS_BASE);
-
-
-    if (supp_entry == NULL) {
-      /* To implement virtual memory, delete the rest of the function
-       body, and replace it with code that brings in the page to
-       which fault_addr refers. */
-
-      /* check whether it's a valid stack access */
-
-      if (is_stack_access(fault_addr, esp)) {
-//      printf ("new stack\n");
-        void *kernel_address = get_frame_for_page (up_address, PAL_USER);
-//      spt_insert(&ct->spt, up_address, LOADED);
-        install_page (up_address, kernel_address, true);
-      } else {
+    void *fault_upage = pagedir_get_page(thread_current()->pagedir, up_address);
+    struct supp_entry *supp_entry = pagedir_get_fake(thread_current ()->pagedir, fault_addr);
+    if (fault_upage != NULL) {
+      if (!pagedir_is_writeable(thread_current()->pagedir, up_address)) {
         goto die;
       }
+    } else if (supp_entry != NULL) {
+      load_segment_lazy (supp_entry->file, supp_entry, pg_round_down (fault_addr));
+    } else if (is_stack_access(fault_addr, esp)) {
+      void *kernel_address = get_frame_for_page (up_address, PAL_USER);
+      install_page (up_address, kernel_address, true);
     } else {
-//      printf("Getting here with fa %p\n", fault_addr);
-      void *fault_page = pagedir_get_page(thread_current()->pagedir, pg_round_down(fault_addr));
-      if (!fault_page) {
-        load_segment_lazy (supp_entry->file, supp_entry,
-                           pg_round_down (fault_addr));
-      } else {
-        if (!pagedir_is_writeable(thread_current()->pagedir, pg_round_down(fault_addr))) {
-          printf("Attempting to write to read-only segment.\n");
-          goto die;
-        }
-      }
+      goto die;
     }
   } else {
     die:
@@ -209,4 +184,35 @@ page_fault (struct intr_frame *f)
     kill (f);
   }
 }
+
+
+//    /* Checking if page fault caused by a syscall,
+//     * if so need to use the saved esp address */
+//
+////  printf("fa: %p , sp: %p esp: %p eip: %p phyb: %p\n", fault_addr, esp, f->esp, f->eip, PHYS_BASE);
+//
+//if (supp_entry == NULL) {
+///* To implement virtual memory, delete the rest of the function
+// body, and replace it with code that brings in the page to
+// which fault_addr refers. */
+//
+///* check whether it's a valid stack access */
+//if (is_stack_access(fault_addr, esp)) {
+//void *kernel_address = get_frame_for_page (up_address, PAL_USER);
+//install_page (up_address, kernel_address, true);
+//} else {
+//goto die;
+//}
+//} else {
+//void *fault_page = pagedir_get_page(thread_current()->pagedir, pg_round_down(fault_addr));
+//if (!fault_page) {
+//load_segment_lazy (supp_entry->file, supp_entry,
+//pg_round_down (fault_addr));
+//} else {
+//if (!pagedir_is_writeable(thread_current()->pagedir, pg_round_down(fault_addr))) {
+//printf("Attempting to write to read-only segment.\n");
+//goto die;
+//}
+//}
+//}
 
