@@ -134,7 +134,7 @@ page_fault (struct intr_frame *f)
   bool write;        /* True: access was write, false: access was read. */
   bool user;         /* True: access by user, false: access by kernel. */
   void *fault_addr;  /* Fault address. */
-//  struct thread* ct = thread_current();
+  struct thread* ct = thread_current();
 
   /* Obtain faulting address, the virtual address that was
      accessed to cause the fault.  It may point to code or to
@@ -165,7 +165,8 @@ page_fault (struct intr_frame *f)
 
   /* Checking if page fault  caused by a syscall,
    * if so need to use the saved esp address */
-//  void *esp = (f->eip > PHYS_BASE ? *ct->esp : f->esp);
+  void *esp = (f->eip > PHYS_BASE ? *ct->esp : f->esp);
+//  printf("fa: %p , sp: %p esp: %p eip: %p phyb: %p\n", fault_addr, esp, f->esp, f->eip, PHYS_BASE);
 
 
   if (supp_entry == NULL) {
@@ -174,10 +175,9 @@ page_fault (struct intr_frame *f)
      which fault_addr refers. */
 
     /* check whether it's a valid stack access */
-    //printf("fa: %p , sp: %p esp: %p\n", fault_addr, f->esp, f->esp);
-    if (verify_stack_access(fault_addr, f->esp)) {
-      //printf ("new stack\n");
-      void *kernel_address = get_frame_for_page (up_address);
+    if (verify_stack_access(fault_addr, esp)) {
+//      printf ("new stack\n");
+      void *kernel_address = get_frame_for_page (up_address, PAL_USER);
 //      spt_insert(&ct->spt, up_address, LOADED);
       install_page(up_address, kernel_address, true);
     } else {

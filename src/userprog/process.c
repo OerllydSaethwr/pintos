@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <threads/synch.h>
+#include "vm/frame.h"
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
 #include "userprog/tss.h"
@@ -22,7 +23,7 @@
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
-
+struct lock file_lock;
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
@@ -105,7 +106,7 @@ static void start_process (void *aux_) {
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-
+  lock_init(&file_lock);
   success = load (file_name, &if_.eip, &if_.esp);
   aux->success = success;
 
@@ -330,7 +331,6 @@ bool load (const char *file_name, void (**eip) (void), void **esp) {
   }
 
   process_activate ();
-
   /* Open executable file. */
   file = filesys_open (file_name);
   if (file == NULL) 
@@ -528,7 +528,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
       /* Get a page of memory. */
-      uint8_t *kpage = palloc_get_page (PAL_USER);
+      uint8_t *kpage = get_frame_for_page (upage, PAL_USER);
       if (kpage == NULL)
         return false;
 
@@ -607,7 +607,7 @@ setup_stack (void **esp)
   uint8_t *kpage;
   bool success = false;
 
-  kpage = palloc_get_page(PAL_USER | PAL_ZERO);
+  kpage = get_frame_for_page(((uint8_t *) PHYS_BASE) - PGSIZE,  PAL_USER);
 
   if (kpage != NULL) 
     {

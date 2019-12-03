@@ -2,7 +2,7 @@
 #define PINTOS_08_FRAME_H
 
 #include <hash.h>
-
+#include "threads/palloc.h"
 /* Frame table entry */
 struct frame {
   uint32_t frame_no;
@@ -15,5 +15,6 @@ struct frame {
 
 /* Initialize frame table */
 void frame_init(void);
-void* get_frame_for_page(void *upage);
+void *get_frame_for_page(void *upage, PALLOC_FLAGS);
+static  uint32_t FRAME_NUM = 0;
 #endif //PINTOS_08_FRAME_H

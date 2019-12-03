@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <threads/synch.h>
 #include <threads/vaddr.h>
+#include "vm/utils.h"
 #include "pagedir.h"
 #include "process.h"
 #include "threads/interrupt.h"
@@ -83,6 +84,8 @@ void syscall_init (void) {
 
 static void syscall_handler (struct intr_frame *f) {
   int *sp = f->esp;
+  thread_current()->esp = &f->esp;
+
   check_pointer (sp);
 
   /* Creating argument array */
@@ -92,11 +95,12 @@ static void syscall_handler (struct intr_frame *f) {
     argv[i] = sp + i + 1;
   }
   argv[argc] = &f->eax;
-
   /* Checking if pointers are valid */
   for (int i = 0; i < argc; ++i) {
     check_pointer (argv[i]);
   }
+
+
 
   /* Delegating to specific syscall */
   fpa[*sp] (argv);
@@ -308,9 +312,7 @@ static void check_pointer (void *pointer) {
 }
 
 static bool valid_pointer (void *pointer) {
-  return pointer != NULL
-         && is_user_vaddr (pointer)
-         && pagedir_get_page (thread_current ()->pagedir, pointer);
+  return is_user_vaddr (pointer);
 }
 
 void kill_process (void) {

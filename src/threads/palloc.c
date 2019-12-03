@@ -94,14 +94,15 @@ palloc_get_multiple (enum palloc_flags flags, size_t page_cnt)
       if (flags & PAL_ZERO)
         memset (pages, 0, PGSIZE * page_cnt);
 
-      if (flags & PAL_USER) {
-        for (size_t i = 0; i < page_cnt; i++) {
-          struct frame *new = malloc(sizeof(struct frame));
-          new->frame_no = vtop(pages + PGSIZE * i);
-          new->process = thread_current();
-          hash_replace(&frame_table, &new->hash_elem);
-        }
-      }
+//      if (flags & PAL_USER) {
+//        for (size_t i = 0; i < page_cnt; i++) {
+//          /*struct frame *new = malloc(sizeof(struct frame));
+//          new->frame_no = vtop(pages + PGSIZE * i);
+//          new->process = thread_current();
+//          hash_replace(&frame_table, &new->hash_elem);*/
+//          get_frame_for_page(pages);
+//        }
+//      }
     }
   else 
     {

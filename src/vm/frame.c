@@ -3,7 +3,6 @@
 #include "threads/vaddr.h"
 #include "threads/malloc.h"
 #include "threads/thread.h"
-
 #include "frame.h"
 #include "debug.h"
 
@@ -21,7 +20,7 @@ void frame_init(void) {
 
 static unsigned frame_hash(const struct hash_elem *e, void *aux UNUSED) {
   struct frame *f = hash_entry(e, struct frame, hash_elem);
-  return hash_int(f->frame_no);
+  return f->frame_no;
 }
 
 static bool frame_less_func(const struct hash_elem *a,
@@ -33,20 +32,20 @@ static bool frame_less_func(const struct hash_elem *a,
 }
 
 /* Get a frame of memory for the current thread */
-void* get_frame_for_page(void *upage)
+void* get_frame_for_page(void *upage, PALLOC_FLAGS flag)
 {
   ASSERT(is_user_vaddr(upage));
-  void *kpage = palloc_get_page(PAL_USER | PAL_ZERO);
+  void *kpage = palloc_get_page(PAL_USER | flag);
 
   lock_acquire(&frame_lock);
 
   if (kpage == NULL) {
     /* Evict to make space*/
 //    evict_frame();
-    kpage = palloc_get_page(PAL_USER | PAL_ZERO);
+    kpage = palloc_get_page(flag);
     ASSERT(kpage != NULL);
   }
-  struct frame *new= (struct frame *) malloc(sizeof(struct frame));
+  struct frame *new = (struct frame *) malloc(sizeof(struct frame));
 
   if (new == NULL) {
     PANIC("Cannot allocated a new frame");
@@ -55,7 +54,7 @@ void* get_frame_for_page(void *upage)
   new->process = thread_current();
   new->kaddr = kpage;
   new->uaddr = upage;
-
+  new->frame_no = ++FRAME_NUM;
   struct hash_elem *success = hash_insert(&frame_table, &new->hash_elem);
   lock_release (&frame_lock);
 
