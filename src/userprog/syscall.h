@@ -20,5 +20,6 @@
 typedef int mapid_t;
 void syscall_init (void);
 void kill_process(void);
+struct file_descriptor *file_descriptor_finder (int);
 #endif
 /* userprog/syscall.h */

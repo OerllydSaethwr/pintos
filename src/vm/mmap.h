@@ -9,21 +9,20 @@
 #include <userprog/pagedir.h>
 #include "userprog/syscall.h"
 
-struct mmap_table {
-  struct hash mmap_table;
-  mapid_t map_id;
-};
-
 struct mmap_entry {
   struct hash_elem hash_elem;
-  uint32_t *location_of_file;
+  void *location_of_file;
   mapid_t map_id;
+  struct file* file;
+  uint32_t size;
 };
 
 void mmap_table_init(void);
 void mmap_table_free(void);
+mapid_t allocate_map_id(void);
+void m_unmap(mapid_t);
 
 
-struct mmap_table *mmap_table;
+struct hash mmap_table;
 
 #endif //PINTOS_08_MMAP_H

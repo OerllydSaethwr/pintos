@@ -53,8 +53,6 @@ static void mmap(void **);
 
 static void munmap(void **);
 
-static struct file_descriptor *file_descriptor_finder (int fd);
-
 static bool overlapping_mapped_mem(uint32_t file_size, void *upage);
 
 
@@ -325,7 +323,7 @@ void kill_process (void) {
 
 /* A function to search HashTable for given file descriptor value. Returns
  * file descriptor struct if found, otherwise returns NULL */
-static struct file_descriptor *file_descriptor_finder (int fd) {
+struct file_descriptor *file_descriptor_finder (int fd) {
   struct file_descriptor temp_fd;
   struct hash_elem *elem;
   temp_fd.descriptor = fd;
@@ -348,6 +346,9 @@ static void mmap (void **argv) {
   if (file_desc) {
     uint32_t size = file_length(file_desc->actual_file);
     void *valp = (void *) (*(uint32_t  *) (addr));
+
+    //printf("valp : %p\n", valp);
+
     bool page_aligned = (( (PHYS_BASE - valp) % PGSIZE) == 0);
     if (size > 0 && valp > 0 && page_aligned &&
         !overlapping_mapped_mem(size, valp)) {
@@ -365,14 +366,14 @@ static void mmap (void **argv) {
       load_segment_lazy(file_desc->actual_file, supp_entry, valp);
 
       struct mmap_entry* me = malloc(sizeof(struct mmap_entry));
-      // temp solution for int overflow
-      if (++(mmap_table->map_id) == 0) {
-        mmap_table->map_id = 2;
-      }
-      me->map_id = mmap_table->map_id;
-      me->location_of_file = valp;
 
-      hash_insert(&mmap_table->mmap_table, &me->hash_elem);
+      me->map_id = allocate_map_id();
+     // printf("assigning hash id : %d\n", me->map_id);
+      //printf("file has size: %u\n", size);
+      me->location_of_file = (void *) 0x10000000;
+      me->file = file_reopen(file_desc->actual_file);
+      me->size = size;
+      hash_insert(&mmap_table, &me->hash_elem);
 
       *eax = me->map_id;
       return;
@@ -384,6 +385,7 @@ static void mmap (void **argv) {
 
 static void munmap (void **argv) {
   mapid_t mapping = *(mapid_t *) argv[0];
+  m_unmap(mapping);
 }
 
 
