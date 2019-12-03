@@ -17,7 +17,7 @@
 #define ARG_NUM_MUNMAP 1
 #define INVALID -1
 #define STATUS_KILLED -1
-typedef int mapid_t;
+typedef unsigned mapid_t;
 void syscall_init (void);
 void kill_process(void);
 struct file_descriptor *file_descriptor_finder (int);

@@ -243,7 +243,7 @@ thread_create (const char *name, int priority,
 
 #ifdef VM
   mmap_table_init(&t->mmap_table);
-  t->mmap_id = 2;
+  t->mmap_id = MAPID_START;
 #endif
 
   intr_set_level (old_level);

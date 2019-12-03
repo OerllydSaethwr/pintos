@@ -4,6 +4,7 @@
 
 #ifndef PINTOS_08_MMAP_H
 #define PINTOS_08_MMAP_H
+#define MAPID_START 2
 
 #include <hash.h>
 #include <userprog/pagedir.h>

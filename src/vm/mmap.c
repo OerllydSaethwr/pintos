@@ -20,6 +20,9 @@ void mmap_table_init(struct hash *hash_map) {
 }
 
 mapid_t allocate_map_id(void) {
+  if(thread_current()->mmap_id == 0) {
+    thread_current()->mmap_id = MAPID_START;
+  }
   return thread_current()->mmap_id++;
 }
 
@@ -72,7 +75,7 @@ void unmap_hash (struct hash_elem *e, void *aux UNUSED) {
     curr_offset += PGSIZE;
   }
 
-  //file_close(me->file);
+  file_close(me->file);
   hash_delete(&thread_current()->mmap_table, &me->hash_elem);
   free(me);
 }
