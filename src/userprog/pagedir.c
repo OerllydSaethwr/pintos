@@ -101,13 +101,16 @@ pagedir_set_page (uint32_t *pd, void *upage, void *kpage, bool writable, enum pt
 {
   uint32_t *pte;
 
+//  printf("in page set\n");
   ASSERT (pg_ofs (upage) == 0);
   //ASSERT (pg_ofs (kpage) == 0);
   ASSERT (is_user_vaddr (upage));
   ASSERT (vtop (kpage) >> PTSHIFT < init_ram_pages);
   ASSERT (pd != init_page_dir);
 
+
   pte = lookup_page (pd, upage, true);
+//  printf("looking for page\n");
 
   if (pte != NULL) 
     {
@@ -152,7 +155,7 @@ struct supp_entry *pagedir_get_fake(uint32_t *pd, const void *uaddr) {
 
 /* Marks user virtual page UPAGE "not present" in page
    directory PD.  Later accesses to the page will fault.  Other
-   bits in the page table entry are preserved.
+   bits in the page table entry are not preserved.
    UPAGE need not be mapped. */
 void
 pagedir_clear_page (uint32_t *pd, void *upage) 
@@ -162,10 +165,12 @@ pagedir_clear_page (uint32_t *pd, void *upage)
   ASSERT (pg_ofs (upage) == 0);
   ASSERT (is_user_vaddr (upage));
 
+//  printf("in clear page\n");
   pte = lookup_page (pd, upage, false);
   if (pte != NULL && (*pte & PTE_P) != 0)
     {
-      *pte &= ~PTE_P;
+//      printf("setting present bit\n");
+      *pte = 0;
       invalidate_pagedir (pd);
     }
 }
@@ -274,4 +279,17 @@ invalidate_pagedir (uint32_t *pd)
          "Translation Lookaside Buffers (TLBs)". */
       pagedir_activate (pd);
     } 
+}
+
+bool pagedir_is_writeable(uint32_t *pd, const void *upage) {
+  uint32_t *pte;
+
+  ASSERT (is_user_vaddr (upage));
+
+  pte = lookup_page (pd, upage, false);
+
+  if (pte != NULL && (*pte & PTE_P) != 0) {
+    return (*pte & PTE_W);
+  }
+  return false;
 }

@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <threads/synch.h>
+#include <vm/mmap.h>
+#include "vm/frame.h"
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
 #include "userprog/tss.h"
@@ -22,7 +24,7 @@
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
-
+struct lock file_lock;
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
@@ -105,7 +107,7 @@ static void start_process (void *aux_) {
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-
+  lock_init(&file_lock);
   success = load (file_name, &if_.eip, &if_.esp);
   aux->success = success;
 
@@ -207,7 +209,7 @@ void process_exit (void) {
   uint32_t *pd;
 
   hash_destroy (&cur->file_hash_descriptors, delete_remaining_hash);
-
+  hash_destroy (&cur->mmap_table, unmap_hash);
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   pd = cur->pagedir;
@@ -320,8 +322,8 @@ bool load (const char *file_name, void (**eip) (void), void **esp) {
   struct Elf32_Ehdr ehdr;
   struct file *file = NULL;
   off_t file_ofs;
-  bool success = false;
   int i;
+  bool success = false;
 
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
@@ -330,7 +332,6 @@ bool load (const char *file_name, void (**eip) (void), void **esp) {
   }
 
   process_activate ();
-
   /* Open executable file. */
   file = filesys_open (file_name);
   if (file == NULL) 
@@ -356,7 +357,7 @@ bool load (const char *file_name, void (**eip) (void), void **esp) {
 
   /* Read program headers. */
   file_ofs = ehdr.e_phoff;
-  for (i = 0; i < ehdr.e_phnum; i++) 
+  for ( i = 0; i < ehdr.e_phnum; i++)
     {
       struct Elf32_Phdr phdr;
 
@@ -412,13 +413,15 @@ bool load (const char *file_name, void (**eip) (void), void **esp) {
 //                     "| zero_bytes: %d\n"
 //                     "| offset: %d\n"
 //                     "| vaddr: %p\n"
-//                     "----------------------------------------\n", read_bytes, zero_bytes, file_page, (void *) mem_page);
+//                     "| writable: %d"
+//                     "----------------------------------------\n", read_bytes, zero_bytes, file_page, (void *) mem_page, writable);
               struct supp_entry *supp_entry = malloc(sizeof(struct supp_entry));
               supp_entry->file = file;
               supp_entry->read_bytes = read_bytes;
-              supp_entry->zero_bytes = zero_bytes;
               supp_entry->writeable = writable;
-              supp_entry->pos = file_page;
+              supp_entry->segment_offset = file_page;
+              supp_entry->initial_page = mem_page;
+              create_fake_entries((void *) mem_page, read_bytes, zero_bytes, supp_entry);
               if (!load_segment_lazy(file, supp_entry, (void *) mem_page)) {
                 goto done;
               }
@@ -444,8 +447,6 @@ bool load (const char *file_name, void (**eip) (void), void **esp) {
 }
 
 /* load() helpers. */
-
-static bool install_page (void *upage, void *kpage, bool writable);
 
 /* Checks whether PHDR describes a valid, loadable segment in
    FILE and returns true if so, false otherwise. */
@@ -514,11 +515,11 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   ASSERT (pg_ofs (upage) == 0);
   ASSERT (ofs % PGSIZE == 0);
 
+  //printf("loading page into: %p\n", upage);
+
   file_seek (file, ofs);
-  int i = 0;
-  while (read_bytes > 0 || zero_bytes > 0) 
+  while (read_bytes > 0 || zero_bytes > 0)
     {
-    ASSERT(!i++);
       /* Calculate how to fill this page.
          We will read PAGE_READ_BYTES bytes from FILE
          and zero the final PAGE_ZERO_BYTES bytes. */
@@ -526,7 +527,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
       /* Get a page of memory. */
-      uint8_t *kpage = palloc_get_page (PAL_USER);
+      uint8_t *kpage = get_frame_for_page (upage, PAL_USER);
       if (kpage == NULL)
         return false;
 
@@ -557,34 +558,34 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 }
 
 bool load_segment_lazy(struct file *file, struct supp_entry *supp_entry, uint8_t *upage) {
-  uint32_t read_bytes = supp_entry->read_bytes > PGSIZE ? PGSIZE : supp_entry->read_bytes;
+  uint32_t offset = (uint32_t) upage - supp_entry->initial_page;
+
+  uint32_t read_bytes = offset > supp_entry->read_bytes ? 0 : (supp_entry->read_bytes - offset);
+  read_bytes = read_bytes > PGSIZE ? PGSIZE : read_bytes;
   uint32_t zero_bytes = PGSIZE - read_bytes;
 
-//  printf("**********\n");
-//  printf("///////////////////////%d\n", supp_entry->pos);
+//  printf("Lazy loading entry at %p\n", upage);
 
   ASSERT(read_bytes + zero_bytes == PGSIZE);
 
-  bool success = load_segment(file, supp_entry->pos, upage, read_bytes, zero_bytes, supp_entry->writeable);
+  bool success = load_segment(file, offset + supp_entry->segment_offset, upage, read_bytes, zero_bytes, supp_entry->writeable);
+  return success;
+}
 
-  if (success) {
-//    printf("* Should be: %d\n", (uint32_t) (upage + PGSIZE) - 0x08048000);
-//    printf("* Actual value: %d\n", file_tell(file));
-    file_seek(file, file_tell(file) + zero_bytes);
-    supp_entry->pos = file_tell(file);
-    supp_entry->read_bytes -= read_bytes;
-    supp_entry->zero_bytes -= zero_bytes;
-    if (supp_entry->read_bytes == 0 && supp_entry->zero_bytes == 0) {
-      free(supp_entry);
-    }
-    else {
-      pagedir_set_page(thread_current()->pagedir, upage + PGSIZE, supp_entry, supp_entry->writeable, FAKE);
-    }
+bool create_fake_entries(uint8_t *upage,uint32_t read_bytes, uint32_t zero_bytes, struct supp_entry* supp_entry) {
+  while (read_bytes > 0 || zero_bytes > 0)
+  {
+    size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
+    size_t page_zero_bytes = PGSIZE - page_read_bytes;
+
+    pagedir_set_page(thread_current()->pagedir, upage, supp_entry, supp_entry->writeable, FAKE);
+
+    read_bytes -= page_read_bytes;
+    zero_bytes -= page_zero_bytes;
+    upage += PGSIZE;
   }
 
-//  printf("**********\n");
-
-  return success;
+  return true;
 }
 
 /* Create a minimal stack by mapping a zeroed page at the top of
@@ -595,7 +596,7 @@ setup_stack (void **esp)
   uint8_t *kpage;
   bool success = false;
 
-  kpage = palloc_get_page(PAL_USER | PAL_ZERO);
+  kpage = get_frame_for_page(((uint8_t *) PHYS_BASE) - PGSIZE,  PAL_USER);
 
   if (kpage != NULL) 
     {
@@ -617,13 +618,23 @@ setup_stack (void **esp)
    with palloc_get_page().
    Returns true on success, false if UPAGE is already mapped or
    if memory allocation fails. */
-static bool
+bool
 install_page (void *upage, void *kpage, bool writable)
 {
   struct thread *t = thread_current ();
 
+  //printf("installing page \n");
+
   /* Verify that there's not already a page at that virtual
      address, then map our page there. */
-  return (pagedir_get_page (t->pagedir, upage) == NULL
-          && pagedir_set_page (t->pagedir, upage, kpage, writable, USER));
+
+  if (pagedir_get_page (t->pagedir, upage) == NULL) {
+    //printf("checking get page\n");
+    bool page = pagedir_set_page (t->pagedir, upage, kpage, writable, USER);
+    //printf("setting page\n");
+    return page;
+  }
+  return false;
+  /*return (pagedir_get_page (t->pagedir, upage) == NULL
+          && pagedir_set_page (t->pagedir, upage, kpage, writable, USER));*/
 }

@@ -5,12 +5,15 @@
 #include <stdio.h>
 #include <threads/synch.h>
 #include <threads/vaddr.h>
+#include "lib/round.h"
+#include "vm/utils.h"
 #include "pagedir.h"
 #include "process.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/malloc.h"
 #include "userprog/syscall.h"
+#include "vm/mmap.h"
 
 static void check_pointer (void *pointer);
 
@@ -46,7 +49,12 @@ static void wait (void **);
 
 static void write (void **);
 
-static struct file_descriptor *file_descriptor_finder (int fd);
+static void mmap(void **);
+
+static void munmap(void **);
+
+static bool overlapping_mapped_mem(uint32_t file_size, void *upage);
+
 
 static struct lock filesystem_lock;
 
@@ -55,17 +63,18 @@ static struct lock filesystem_lock;
  * in one line */
 
 /* Array of function pointers the handler delegates to. */
-static void (*fpa[13]) (void **argv) = {
+static void (*fpa[15]) (void **argv) = {
   halt, exit, exec, wait, create, remove, open, filesize, read, write, seek,
-  tell, close
+  tell, close, mmap, munmap
 };
+
 
 /* Argument counts of handler function. */
 static int argument_counts[] = {ARG_NUM_HALT, ARG_NUM_EXIT, ARG_NUM_EXEC,
                                 ARG_NUM_WAIT, ARG_NUM_CREATE, ARG_NUM_REMOVE,
                                 ARG_NUM_OPEN, ARG_NUM_FILESIZE, ARG_NUM_READ,
                                 ARG_NUM_WRITE, ARG_NUM_SEEK, ARG_NUM_TELL,
-                                ARG_NUM_CLOSE};
+                                ARG_NUM_CLOSE, ARG_NUM_MMAP, ARG_NUM_MUNMAP};
 
 void syscall_init (void) {
   lock_init (&filesystem_lock);
@@ -75,6 +84,7 @@ void syscall_init (void) {
 static void syscall_handler (struct intr_frame *f) {
   int *sp = f->esp;
   check_pointer (sp);
+  thread_current()->esp = &f->esp;
 
   /* Creating argument array */
   int argc = argument_counts[*sp];
@@ -83,7 +93,6 @@ static void syscall_handler (struct intr_frame *f) {
     argv[i] = sp + i + 1;
   }
   argv[argc] = &f->eax;
-
   /* Checking if pointers are valid */
   for (int i = 0; i < argc; ++i) {
     check_pointer (argv[i]);
@@ -186,11 +195,15 @@ static void filesize (void **argv) {
 }
 
 static void read (void **argv) {
-  check_pointer (*(void **) argv[1]);
   int fd = *(int *) argv[0];
   void *buffer = *(void **) argv[1];
   unsigned size = *(unsigned *) argv[2];
   int *eax = (int *) argv[3];
+  check_pointer (buffer);
+
+  if (!is_stack_access(buffer, *thread_current()->esp) && !pagedir_is_writeable(thread_current()->pagedir, pg_round_down(buffer))) {
+    kill_process();
+  }
 
   /* -1 if file can not be opened*/
   off_t read_bytes = INVALID;
@@ -299,9 +312,10 @@ static void check_pointer (void *pointer) {
 }
 
 static bool valid_pointer (void *pointer) {
-  return pointer != NULL
-         && is_user_vaddr (pointer)
-         && pagedir_get_page (thread_current ()->pagedir, pointer);
+
+  return (pointer != NULL && is_user_vaddr (pointer) && (pagedir_get_page
+  (thread_current()->pagedir, pointer) || is_stack_access(pointer,
+                                                          *thread_current()->esp)));
 }
 
 void kill_process (void) {
@@ -313,7 +327,7 @@ void kill_process (void) {
 
 /* A function to search HashTable for given file descriptor value. Returns
  * file descriptor struct if found, otherwise returns NULL */
-static struct file_descriptor *file_descriptor_finder (int fd) {
+struct file_descriptor *file_descriptor_finder (int fd) {
   struct file_descriptor temp_fd;
   struct hash_elem *elem;
   temp_fd.descriptor = fd;
@@ -324,4 +338,72 @@ static struct file_descriptor *file_descriptor_finder (int fd) {
   }
 
   return NULL;
+}
+
+static void mmap (void **argv) {
+  int fd = *(int *) argv[0];
+  void *valp = *(void **) argv[1];
+  int *eax = (int *) argv[2];
+
+  struct file_descriptor* file_desc = file_descriptor_finder(fd);
+
+  if (file_desc) {
+    uint32_t size = file_length(file_desc->actual_file);
+    //void *valp = (void *) (*(uint32_t  *) (addr));
+
+    //printf("valp : %p\n", valp);
+
+    bool page_aligned = (( (PHYS_BASE - valp) % PGSIZE) == 0);
+    if (size > 0 && valp > 0 && page_aligned &&
+        !overlapping_mapped_mem(size, valp)) {
+      struct file *new_instance = file_reopen(file_desc->actual_file);
+
+      struct supp_entry* supp_entry = malloc(sizeof(struct supp_entry));
+      supp_entry->file = new_instance;
+      supp_entry->read_bytes = size;
+      supp_entry->initial_page = (uint32_t) valp;
+      supp_entry->segment_offset = 0;
+      supp_entry->location = FSYS;
+      supp_entry->writeable = true;
+
+      create_fake_entries(valp, size, PGSIZE - (size % PGSIZE), supp_entry);
+
+      load_segment_lazy(new_instance, supp_entry, valp);
+
+      struct mmap_entry* me = malloc(sizeof(struct mmap_entry));
+
+      me->map_id = allocate_map_id();
+      me->location_of_file = valp;
+      me->file = new_instance;
+      me->size = size;
+      hash_insert(&thread_current()->mmap_table, &me->hash_elem);
+
+      *eax = me->map_id;
+      return;
+    }
+  }
+
+  *eax = INVALID;
+}
+
+static void munmap (void **argv) {
+  mapid_t mapping = *(mapid_t *) argv[0];
+  m_unmap(mapping);
+}
+
+
+static bool overlapping_mapped_mem(uint32_t file_size, void *upage) {
+  uint32_t curr_bytes = 0;
+  while (file_size > curr_bytes) {
+    uint32_t new_address = (uint32_t) upage + curr_bytes;
+    void *get_page = pagedir_get_page(thread_current()->pagedir, (void *) (new_address));
+    void *get_fake = pagedir_get_fake(thread_current()->pagedir, (void *) new_address);
+
+    if (is_user_vaddr(upage) && (get_page != NULL || get_fake != NULL)) {
+      return true;
+    }
+
+    curr_bytes += PGSIZE;
+  }
+  return false;
 }

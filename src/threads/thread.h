@@ -5,7 +5,9 @@
 #include <list.h>
 #include <stdint.h>
 #include <hash.h>
+#include "userprog/syscall.h"
 #include "synch.h"
+#include "vm/mmap.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -107,6 +109,12 @@ struct thread
     struct hash file_hash_descriptors;    /* File descriptors held by process */
     int curr_file_descriptor;             /* Current number of descriptors */
     struct file *executable;              /* Executable used by process */
+#endif
+
+#ifdef VM
+    void **esp;                            /* Pointer syscal stack pointer */
+    struct hash mmap_table;                /* Hash map for memory mapped files */
+    mapid_t mmap_id;                       /* Mapped file id */
 #endif
 
     /* Owned by thread.c. */
