@@ -5,7 +5,9 @@
 #include <list.h>
 #include <stdint.h>
 #include <hash.h>
+#include "userprog/syscall.h"
 #include "synch.h"
+#include "vm/mmap.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -111,6 +113,8 @@ struct thread
 
 #ifdef VM
     void **esp;                            /* Pointer syscal stack pointer */
+    struct hash mmap_table;                /* Hash map for memory mapped files */
+    mapid_t mmap_id;                       /* Mapped file id */
 #endif
 
     /* Owned by thread.c. */

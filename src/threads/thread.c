@@ -241,6 +241,11 @@ thread_create (const char *name, int priority,
   hash_init(&t->file_hash_descriptors, file_hash, file_hash_less, NULL);
 #endif
 
+#ifdef VM
+  mmap_table_init(&t->mmap_table);
+  t->mmap_id = 2;
+#endif
+
   intr_set_level (old_level);
 
   /* Add to run queue. */
@@ -559,6 +564,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->been_waited_on = false;
   t->curr_file_descriptor = STDOUT_FILENO;
 #endif
+
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);

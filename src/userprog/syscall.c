@@ -368,13 +368,10 @@ static void mmap (void **argv) {
       struct mmap_entry* me = malloc(sizeof(struct mmap_entry));
 
       me->map_id = allocate_map_id();
-     // printf("assigning hash id : %d\n", me->map_id);
-      //printf("file has size: %u\n", size);
       me->location_of_file = (void *) 0x10000000;
       me->file = file_reopen(file_desc->actual_file);
       me->size = size;
-      me->mapped_by = thread_current();
-      hash_insert(&mmap_table, &me->hash_elem);
+      hash_insert(&thread_current()->mmap_table, &me->hash_elem);
 
       *eax = me->map_id;
       return;

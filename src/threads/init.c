@@ -118,8 +118,6 @@ main (void)
   frame_init();
 #endif
 
-  mmap_table_init();
-
   /* Start thread scheduler and enable interrupts. */
   thread_start ();
   serial_init_queue ();

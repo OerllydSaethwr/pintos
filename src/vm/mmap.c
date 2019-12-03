@@ -14,24 +14,13 @@ static bool mmap_less_func(const struct hash_elem *,
                             const struct hash_elem *,
                             void *);
 
-static struct lock mmap_id_lock;
 
-void mmap_table_init(void) {
-  hash_init(&mmap_table, mmap_hash, mmap_less_func, NULL);
-  lock_init(&mmap_id_lock);
+void mmap_table_init(struct hash *hash_map) {
+  hash_init(hash_map, mmap_hash, mmap_less_func, NULL);
 }
 
 mapid_t allocate_map_id(void) {
-  static mapid_t next_id = 2;
-  lock_acquire(&mmap_id_lock);
-  mapid_t map_id;
-  map_id = next_id++;
-  if (next_id == 0) {
-    next_id = 2;
-    map_id = next_id++;
-  }
-  lock_release(&mmap_id_lock);
-  return map_id;
+  return thread_current()->mmap_id++;
 }
 
 static unsigned mmap_hash(const struct hash_elem *e, void *aux UNUSED) {
@@ -48,19 +37,10 @@ static bool mmap_less_func(const struct hash_elem *a,
   return me_a->map_id < me_b->map_id;
 }
 
-static void delete_and_free (struct hash_elem *e, void *aux UNUSED) {
-  struct mmap_entry *me = hash_entry (e, struct mmap_entry, hash_elem);
-  free (me);
-}
-
-void mmap_table_free(void) {
-  hash_destroy(&mmap_table, delete_and_free);
-}
-
 void m_unmap(mapid_t map_id) {
   struct mmap_entry temp;
   temp.map_id = map_id;
-  struct hash_elem* actual_hash = hash_find(&mmap_table, &temp.hash_elem);
+  struct hash_elem* actual_hash = hash_find(&thread_current()->mmap_table, &temp.hash_elem);
 
   if (actual_hash) {
     unmap_hash(actual_hash, NULL);
@@ -69,34 +49,32 @@ void m_unmap(mapid_t map_id) {
 }
 
 void unmap_hash (struct hash_elem *e, void *aux UNUSED) {
-  struct mmap_entry* me = hash_entry(e, struct mmap_entry, hash_elem);
-  if (me->mapped_by != thread_current()) {
+  struct mmap_entry *me = hash_entry(e, struct mmap_entry, hash_elem);
 
-    off_t curr_offset = 0;
+  off_t curr_offset = 0;
 
-    //printf("hash id : %d\n", me->map_id);
-    while (curr_offset < me->size) {
-      uint32_t read_bytes = ((me->size - curr_offset) > PGSIZE) ? PGSIZE : (
-          me->size - curr_offset);
+  //printf("hash id : %d\n", me->map_id);
+  while (curr_offset < me->size) {
+    uint32_t read_bytes = ((me->size - curr_offset) > PGSIZE) ? PGSIZE : (
+        me->size - curr_offset);
 
-      void *curr_loc = (void *) ((uint32_t) me->location_of_file + curr_offset);
-      void *addr = (void *) pagedir_get_page(thread_current()->pagedir,
-                                             curr_loc);
+    void *curr_loc = (void *) ((uint32_t) me->location_of_file + curr_offset);
+    void *addr = (void *) pagedir_get_page(thread_current()->pagedir,
+                                           curr_loc);
 
 //      printf("currloc : %p maps to %p\n", curr_loc, addr);
-      if (addr != NULL &&
-          pagedir_is_dirty(thread_current()->pagedir, curr_loc)) {
-        file_seek(me->file, curr_offset);
-        file_write(me->file, curr_loc, read_bytes);
-      }
-
-      pagedir_clear_page(thread_current()->pagedir, curr_loc);
-
-      curr_offset += read_bytes;
+    if (addr != NULL &&
+        pagedir_is_dirty(thread_current()->pagedir, curr_loc)) {
+      file_seek(me->file, curr_offset);
+      file_write(me->file, curr_loc, read_bytes);
     }
 
-    file_close(me->file);
-    hash_delete(&mmap_table, &me->hash_elem);
-    free(me);
+    pagedir_clear_page(thread_current()->pagedir, curr_loc);
+
+    curr_offset += read_bytes;
   }
+
+  file_close(me->file);
+  hash_delete(&thread_current()->mmap_table, &me->hash_elem);
+  free(me);
 }
