@@ -353,8 +353,10 @@ static void mmap (void **argv) {
     if (size > 0 && valp > 0 && page_aligned &&
         !overlapping_mapped_mem(size, valp)) {
 
+      struct file* new_file = file_reopen(file_desc->actual_file);
+
       struct supp_entry* supp_entry = malloc(sizeof(struct supp_entry));
-      supp_entry->file = file_desc->actual_file;
+      supp_entry->file = new_file;
       supp_entry->read_bytes = size;
       supp_entry->initial_page = (uint32_t) valp;
       supp_entry->segment_offset = 0;
@@ -363,13 +365,13 @@ static void mmap (void **argv) {
 
       create_fake_entries(valp, size, PGSIZE - (size % PGSIZE), supp_entry);
 
-      load_segment_lazy(file_desc->actual_file, supp_entry, valp);
+      load_segment_lazy(new_file, supp_entry, valp);
 
       struct mmap_entry* me = malloc(sizeof(struct mmap_entry));
 
       me->map_id = allocate_map_id();
-      me->location_of_file = (void *) 0x10000000;
-      me->file = file_reopen(file_desc->actual_file);
+      me->location_of_file = valp;
+      me->file = new_file;
       me->size = size;
       hash_insert(&thread_current()->mmap_table, &me->hash_elem);
 

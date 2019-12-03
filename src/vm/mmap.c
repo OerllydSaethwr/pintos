@@ -53,7 +53,6 @@ void unmap_hash (struct hash_elem *e, void *aux UNUSED) {
 
   off_t curr_offset = 0;
 
-  //printf("hash id : %d\n", me->map_id);
   while (curr_offset < me->size) {
     uint32_t read_bytes = ((me->size - curr_offset) > PGSIZE) ? PGSIZE : (
         me->size - curr_offset);
@@ -62,7 +61,6 @@ void unmap_hash (struct hash_elem *e, void *aux UNUSED) {
     void *addr = (void *) pagedir_get_page(thread_current()->pagedir,
                                            curr_loc);
 
-//      printf("currloc : %p maps to %p\n", curr_loc, addr);
     if (addr != NULL &&
         pagedir_is_dirty(thread_current()->pagedir, curr_loc)) {
       file_seek(me->file, curr_offset);
@@ -71,7 +69,7 @@ void unmap_hash (struct hash_elem *e, void *aux UNUSED) {
 
     pagedir_clear_page(thread_current()->pagedir, curr_loc);
 
-    curr_offset += read_bytes;
+    curr_offset += PGSIZE;
   }
 
   file_close(me->file);

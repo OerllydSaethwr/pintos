@@ -13,7 +13,7 @@ struct mmap_entry {
   struct hash_elem hash_elem;
   void *location_of_file;
   mapid_t map_id;
-  struct file* file;
+  struct file *file;
   uint32_t size;
 };
 
