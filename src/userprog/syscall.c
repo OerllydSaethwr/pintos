@@ -373,6 +373,7 @@ static void mmap (void **argv) {
       me->location_of_file = (void *) 0x10000000;
       me->file = file_reopen(file_desc->actual_file);
       me->size = size;
+      me->mapped_by = thread_current();
       hash_insert(&mmap_table, &me->hash_elem);
 
       *eax = me->map_id;

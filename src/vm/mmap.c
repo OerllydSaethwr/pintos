@@ -63,36 +63,40 @@ void m_unmap(mapid_t map_id) {
   struct hash_elem* actual_hash = hash_find(&mmap_table, &temp.hash_elem);
 
   if (actual_hash) {
-    struct mmap_entry* me = hash_entry(actual_hash, struct mmap_entry, hash_elem);
+    unmap_hash(actual_hash, NULL);
+  }
+
+}
+
+void unmap_hash (struct hash_elem *e, void *aux UNUSED) {
+  struct mmap_entry* me = hash_entry(e, struct mmap_entry, hash_elem);
+  if (me->mapped_by != thread_current()) {
+
     off_t curr_offset = 0;
 
     //printf("hash id : %d\n", me->map_id);
-
     while (curr_offset < me->size) {
-      uint32_t read_bytes = ((me->size - curr_offset) > PGSIZE) ? PGSIZE : (me->size - curr_offset);
+      uint32_t read_bytes = ((me->size - curr_offset) > PGSIZE) ? PGSIZE : (
+          me->size - curr_offset);
 
-      //printf("size : %u\n", me->size);
-      //printf("me location of file: %p\n", (me->location_of_file));
+      void *curr_loc = (void *) ((uint32_t) me->location_of_file + curr_offset);
+      void *addr = (void *) pagedir_get_page(thread_current()->pagedir,
+                                             curr_loc);
 
-      void *addr = (void *) pagedir_get_page(thread_current()->pagedir, (void *) ( (uint32_t) me->location_of_file + curr_offset));
-      //printf("addr %p\n", addr);
-      if (addr != NULL && pagedir_is_dirty(thread_current()->pagedir, (void *) ((uint32_t) me->location_of_file+ curr_offset))) {
-        /*char buffer[read_bytes];
-        int curr_byte = 0;
-
-        while (curr_byte <= read_bytes) {
-          buffer[curr_byte] = *(char *) ((void *) ((uint32_t) me->location_of_file + curr_offset + curr_byte));
-          curr_byte++;
-        }*/
+//      printf("currloc : %p maps to %p\n", curr_loc, addr);
+      if (addr != NULL &&
+          pagedir_is_dirty(thread_current()->pagedir, curr_loc)) {
         file_seek(me->file, curr_offset);
-        file_write(me->file, (void *) ((uint32_t) me->location_of_file + curr_offset), read_bytes);
+        file_write(me->file, curr_loc, read_bytes);
       }
 
-      curr_offset += PGSIZE;
+      pagedir_clear_page(thread_current()->pagedir, curr_loc);
+
+      curr_offset += read_bytes;
     }
+
     file_close(me->file);
     hash_delete(&mmap_table, &me->hash_elem);
     free(me);
   }
-
 }

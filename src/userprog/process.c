@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <threads/synch.h>
+#include <vm/mmap.h>
 #include "vm/frame.h"
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
@@ -208,7 +209,7 @@ void process_exit (void) {
   uint32_t *pd;
 
   hash_destroy (&cur->file_hash_descriptors, delete_remaining_hash);
-
+  hash_clear(&mmap_table,unmap_hash);
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   pd = cur->pagedir;
