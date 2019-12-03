@@ -2,7 +2,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
-#include <stdio.h>
 #include "threads/init.h"
 #include "threads/pte.h"
 #include "threads/palloc.h"
@@ -280,4 +279,17 @@ invalidate_pagedir (uint32_t *pd)
          "Translation Lookaside Buffers (TLBs)". */
       pagedir_activate (pd);
     } 
+}
+
+bool pagedir_is_writeable(uint32_t *pd, const void *upage) {
+  uint32_t *pte;
+
+  ASSERT (is_user_vaddr (upage));
+
+  pte = lookup_page (pd, upage, false);
+
+  if (pte != NULL && (*pte & PTE_P) != 0) {
+    return (*pte & PTE_W);
+  }
+  return false;
 }

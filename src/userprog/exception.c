@@ -128,7 +128,7 @@ kill (struct intr_frame *f)
    description of "Interrupt 14--Page Fault Exception (#PF)" in
    [IA32-v3a] section 5.15 "Exception and Interrupt Reference". */
 static void
-page_fault (struct intr_frame *f) 
+page_fault (struct intr_frame *f)
 {
   bool not_present;  /* True: not-present page, false: writing r/o page. */
   bool write;        /* True: access was write, false: access was read. */
@@ -178,7 +178,7 @@ page_fault (struct intr_frame *f)
 
       /* check whether it's a valid stack access */
 
-      if (verify_stack_access (fault_addr, esp)) {
+      if (is_stack_access(fault_addr, esp)) {
 //      printf ("new stack\n");
         void *kernel_address = get_frame_for_page (up_address, PAL_USER);
 //      spt_insert(&ct->spt, up_address, LOADED);
@@ -187,8 +187,17 @@ page_fault (struct intr_frame *f)
         goto die;
       }
     } else {
-      load_segment_lazy (supp_entry->file, supp_entry,
-                         pg_round_down (fault_addr));
+//      printf("Getting here with fa %p\n", fault_addr);
+      void *fault_page = pagedir_get_page(thread_current()->pagedir, pg_round_down(fault_addr));
+      if (!fault_page) {
+        load_segment_lazy (supp_entry->file, supp_entry,
+                           pg_round_down (fault_addr));
+      } else {
+        if (!pagedir_is_writeable(thread_current()->pagedir, pg_round_down(fault_addr))) {
+          printf("Attempting to write to read-only segment.\n");
+          goto die;
+        }
+      }
     }
   } else {
     die:

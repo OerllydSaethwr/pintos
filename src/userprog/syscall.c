@@ -195,11 +195,15 @@ static void filesize (void **argv) {
 }
 
 static void read (void **argv) {
-  check_pointer (*(void **) argv[1]);
   int fd = *(int *) argv[0];
   void *buffer = *(void **) argv[1];
   unsigned size = *(unsigned *) argv[2];
   int *eax = (int *) argv[3];
+  check_pointer (buffer);
+
+  if (!is_stack_access(buffer, *thread_current()->esp) && !pagedir_is_writeable(thread_current()->pagedir, pg_round_down(buffer))) {
+    kill_process();
+  }
 
   /* -1 if file can not be opened*/
   off_t read_bytes = INVALID;
@@ -310,8 +314,8 @@ static void check_pointer (void *pointer) {
 static bool valid_pointer (void *pointer) {
 
   return (pointer != NULL && is_user_vaddr (pointer) && (pagedir_get_page
-  (thread_current()->pagedir, pointer) || verify_stack_access (pointer,
-    *thread_current()->esp)));
+  (thread_current()->pagedir, pointer) || is_stack_access(pointer,
+                                                          *thread_current()->esp)));
 }
 
 void kill_process (void) {
@@ -338,25 +342,24 @@ struct file_descriptor *file_descriptor_finder (int fd) {
 
 static void mmap (void **argv) {
   int fd = *(int *) argv[0];
-  void *addr = argv[1];
+  void *valp = *(void **) argv[1];
   int *eax = (int *) argv[2];
 
   struct file_descriptor* file_desc = file_descriptor_finder(fd);
 
   if (file_desc) {
     uint32_t size = file_length(file_desc->actual_file);
-    void *valp = (void *) (*(uint32_t  *) (addr));
+    //void *valp = (void *) (*(uint32_t  *) (addr));
 
     //printf("valp : %p\n", valp);
 
     bool page_aligned = (( (PHYS_BASE - valp) % PGSIZE) == 0);
     if (size > 0 && valp > 0 && page_aligned &&
         !overlapping_mapped_mem(size, valp)) {
-
-      struct file* new_file = file_reopen(file_desc->actual_file);
+      struct file *new_instance = file_reopen(file_desc->actual_file);
 
       struct supp_entry* supp_entry = malloc(sizeof(struct supp_entry));
-      supp_entry->file = new_file;
+      supp_entry->file = new_instance;
       supp_entry->read_bytes = size;
       supp_entry->initial_page = (uint32_t) valp;
       supp_entry->segment_offset = 0;
@@ -365,13 +368,13 @@ static void mmap (void **argv) {
 
       create_fake_entries(valp, size, PGSIZE - (size % PGSIZE), supp_entry);
 
-      load_segment_lazy(new_file, supp_entry, valp);
+      load_segment_lazy(new_instance, supp_entry, valp);
 
       struct mmap_entry* me = malloc(sizeof(struct mmap_entry));
 
       me->map_id = allocate_map_id();
       me->location_of_file = valp;
-      me->file = new_file;
+      me->file = new_instance;
       me->size = size;
       hash_insert(&thread_current()->mmap_table, &me->hash_elem);
 
@@ -396,7 +399,7 @@ static bool overlapping_mapped_mem(uint32_t file_size, void *upage) {
     void *get_page = pagedir_get_page(thread_current()->pagedir, (void *) (new_address));
     void *get_fake = pagedir_get_fake(thread_current()->pagedir, (void *) new_address);
 
-    if (get_page != NULL || get_fake != NULL) {
+    if (is_user_vaddr(upage) && (get_page != NULL || get_fake != NULL)) {
       return true;
     }
 

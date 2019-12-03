@@ -72,7 +72,7 @@ void unmap_hash (struct hash_elem *e, void *aux UNUSED) {
     curr_offset += PGSIZE;
   }
 
-  file_close(me->file);
+  //file_close(me->file);
   hash_delete(&thread_current()->mmap_table, &me->hash_elem);
   free(me);
 }

@@ -413,7 +413,8 @@ bool load (const char *file_name, void (**eip) (void), void **esp) {
 //                     "| zero_bytes: %d\n"
 //                     "| offset: %d\n"
 //                     "| vaddr: %p\n"
-//                     "----------------------------------------\n", read_bytes, zero_bytes, file_page, (void *) mem_page);
+//                     "| writable: %d"
+//                     "----------------------------------------\n", read_bytes, zero_bytes, file_page, (void *) mem_page, writable);
               struct supp_entry *supp_entry = malloc(sizeof(struct supp_entry));
               supp_entry->file = file;
               supp_entry->read_bytes = read_bytes;
@@ -563,13 +564,11 @@ bool load_segment_lazy(struct file *file, struct supp_entry *supp_entry, uint8_t
   read_bytes = read_bytes > PGSIZE ? PGSIZE : read_bytes;
   uint32_t zero_bytes = PGSIZE - read_bytes;
 
-//  printf("**********\n");
-//  printf("///////////////////////%d\n", supp_entry->pos);
+//  printf("Lazy loading entry at %p\n", upage);
 
   ASSERT(read_bytes + zero_bytes == PGSIZE);
 
   bool success = load_segment(file, offset + supp_entry->segment_offset, upage, read_bytes, zero_bytes, supp_entry->writeable);
-//  printf("**********\n");
   return success;
 }
 

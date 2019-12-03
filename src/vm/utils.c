@@ -7,7 +7,7 @@
 #include <stdio.h>
 
 
-bool verify_stack_access(const void *ptr, void *esp)
+bool is_stack_access(const void *ptr, void *esp)
 {
 
   //printf("Verifying\n");
