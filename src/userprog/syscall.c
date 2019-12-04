@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <threads/synch.h>
 #include <threads/vaddr.h>
+#include "vm/frame.h"
 #include "lib/round.h"
 #include "vm/utils.h"
 #include "pagedir.h"
@@ -15,9 +16,13 @@
 #include "userprog/syscall.h"
 #include "vm/mmap.h"
 
-static void check_pointer (void *pointer);
+static void check_pointer (void *pointer, bool writable);
 
 static void check_string_pointer (const char *string);
+
+static bool is_writable(void *pointer);
+
+static bool valid_pointer (void *, bool check_writable);
 
 static void close (void **);
 
@@ -42,8 +47,6 @@ static void seek (void **);
 static void syscall_handler (struct intr_frame *);
 
 static void tell (void **);
-
-static bool valid_pointer (void *);
 
 static void wait (void **);
 
@@ -83,7 +86,7 @@ void syscall_init (void) {
 
 static void syscall_handler (struct intr_frame *f) {
   int *sp = f->esp;
-  check_pointer (sp);
+  check_pointer (sp, false);
   thread_current()->esp = &f->esp;
 
   /* Creating argument array */
@@ -95,7 +98,7 @@ static void syscall_handler (struct intr_frame *f) {
   argv[argc] = &f->eax;
   /* Checking if pointers are valid */
   for (int i = 0; i < argc; ++i) {
-    check_pointer (argv[i]);
+    check_pointer (argv[i], false);
   }
 
   /* Delegating to specific syscall */
@@ -199,11 +202,7 @@ static void read (void **argv) {
   void *buffer = *(void **) argv[1];
   unsigned size = *(unsigned *) argv[2];
   int *eax = (int *) argv[3];
-  check_pointer (buffer);
-
-  if (!is_stack_access(buffer, *thread_current()->esp) && !pagedir_is_writeable(thread_current()->pagedir, pg_round_down(buffer))) {
-    kill_process();
-  }
+  check_pointer (buffer, true);
 
   /* -1 if file can not be opened*/
   off_t read_bytes = INVALID;
@@ -229,11 +228,12 @@ static void read (void **argv) {
 
 
 static void write (void **argv) {
-  check_pointer (*(void **) argv[1]);
   int fd = *(int *) argv[0];
   const char *buffer = *(const char **) argv[1];
   unsigned size = *(unsigned *) argv[2];
   int *eax = (int *) argv[3];
+  check_pointer (buffer, false);
+
   int bytes_written = 0;
   lock_acquire (&filesystem_lock);
 
@@ -301,21 +301,53 @@ static void close (void **argv) {
 }
 
 static void check_string_pointer (const char *string) {
-  check_pointer ((void *) string);
-  check_pointer ((void *) string + sizeof (string));
+  check_pointer ((void *) string, false);
+  check_pointer ((void *) string + sizeof (string), false);
 }
 
-static void check_pointer (void *pointer) {
-  if (!valid_pointer (pointer)) {
+static void check_pointer (void *pointer, bool check_writeable) {
+  if (!valid_pointer (pointer, check_writeable)) {
     kill_process ();
   }
 }
 
-static bool valid_pointer (void *pointer) {
+static bool valid_pointer (void *pointer, bool check_writable) {
+  if (pointer == NULL || !is_user_vaddr(pointer)) {
+    return false;
+  }
 
-  return (pointer != NULL && is_user_vaddr (pointer) && (pagedir_get_page
-  (thread_current()->pagedir, pointer) || is_stack_access(pointer,
-                                                          *thread_current()->esp)));
+  void *upage = pg_round_down(pointer);
+
+  void *kpage = pagedir_get_page(thread_current()->pagedir, upage);
+  if (kpage != NULL) {
+    if (check_writable) {
+      return pagedir_is_writeable(thread_current()->pagedir, upage);
+    }
+    return true;
+  }
+
+  struct supp_entry *supp_entry = pagedir_get_fake(thread_current()->pagedir, upage);
+
+  if (supp_entry) {
+    if (check_writable) {
+      return supp_entry->writeable;
+    }
+    //load_segment_lazy(supp_entry, upage, EXEC_DATA);
+    return true;
+  }
+
+  if (is_stack_access(pointer, *thread_current()->esp)) {
+    //void *kernel_address = falloc_get_frame(upage, PAL_USER, STACK, NULL);
+    //install_page (upage, kernel_address, true);
+    return true;
+  }
+
+  return false;
+}
+
+static bool is_writable(void *pointer) {
+  void *upage = pg_round_down(pointer);
+  return pagedir_is_writeable(thread_current()->pagedir, upage);
 }
 
 void kill_process (void) {

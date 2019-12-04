@@ -21,8 +21,8 @@ int process_wait (tid_t);
 void process_exit (void);
 void process_activate (void);
 
-bool load_segment_lazy(struct file *file, struct supp_entry *supp_entry,
-                       uint8_t *upage, page_type type);
+bool load_segment_lazy(struct supp_entry *supp_entry, uint8_t *upage,
+                       page_type type);
 
 bool lazy_load_page(struct file *file,off_t ofs, uint8_t *upage, bool writable, struct supp_entry *);
 bool install_page (void *upage, void *kpage, bool writable);
