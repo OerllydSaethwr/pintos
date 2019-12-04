@@ -34,7 +34,7 @@ static bool frame_less_func(const struct hash_elem *a,
 
 /* Get a frame of memory for the current thread */
 void *falloc_get_frame(void *upage, PALLOC_FLAGS flag, page_type type,
-                       struct file *file)
+                       struct file *file, struct mmap_entry *m_entry)
 {
 
 //  printf("getting frame for : %p\n",upage);
@@ -62,6 +62,7 @@ void *falloc_get_frame(void *upage, PALLOC_FLAGS flag, page_type type,
   new->uaddr = upage;
   new->page_type = type;
   new->file = file;
+  new->m_entry = m_entry;
   hash_apply(&frame_table, print_hash_entries);
   struct hash_elem *success = hash_insert(&frame_table, &new->hash_elem);
   lock_release (&frame_lock);

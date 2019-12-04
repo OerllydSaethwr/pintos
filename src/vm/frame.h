@@ -15,12 +15,13 @@ struct frame {
   void *kaddr;  /* Address in kernal */
   void *uaddr;  /* Address in user space */
   enum page_type page_type;
+  struct mmap_entry * m_entry;
 };
 
 /* Initialize frame table */
 void frame_init(void);
 void *falloc_get_frame(void *upage, PALLOC_FLAGS flag, page_type type,
-                       struct file *file);
+                       struct file *file, struct mmap_entry *m_entry);
 void falloc_free_frame(void *kpage);
 void print_hash_entries(struct hash_elem *e, void *aux);
 #endif

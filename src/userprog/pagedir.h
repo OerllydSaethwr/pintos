@@ -4,8 +4,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <vm/utils.h>
+#include <vm/mmap.h>
 #include "threads/pte.h"
 #include "filesys/off_t.h"
+#include "syscall.h"
 
 uint32_t *pagedir_create (void);
 void pagedir_destroy (uint32_t *pd);
@@ -32,7 +34,7 @@ struct supp_entry {
   struct file *file;
   off_t segment_offset;
   uint32_t read_bytes;
-  //uint32_t zero_bytes;
+  struct mmap_entry *map_entry;
   bool writeable;
   enum location location;
   page_type type;

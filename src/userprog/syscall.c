@@ -404,6 +404,8 @@ static void mmap (void **argv) {
 
       struct mmap_entry* me = malloc(sizeof(struct mmap_entry));
 
+      supp_entry->map_entry = me;
+
       me->map_id = allocate_map_id();
       me->location_of_file = valp;
       me->file = new_instance;
