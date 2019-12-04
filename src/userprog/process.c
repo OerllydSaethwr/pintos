@@ -423,9 +423,6 @@ bool load (const char *file_name, void (**eip) (void), void **esp) {
               supp_entry->initial_page = mem_page;
               supp_entry->type = writable ? EXEC_DATA : EXEC_CODE;
               create_fake_entries((void *) mem_page, read_bytes, zero_bytes, supp_entry);
-              if (!load_segment_lazy(file, supp_entry, (void *) mem_page, NULL)) {
-                goto done;
-              }
             }
           else
             goto done;

@@ -369,7 +369,6 @@ static void mmap (void **argv) {
 
       create_fake_entries(valp, size, PGSIZE - (size % PGSIZE), supp_entry);
 
-      load_segment_lazy(new_instance, supp_entry, valp, MMAP);
 
       struct mmap_entry* me = malloc(sizeof(struct mmap_entry));
 

@@ -168,7 +168,7 @@ pagedir_clear_page (uint32_t *pd, void *upage)
 
 //  printf("in clear page\n");
   pte = lookup_page (pd, upage, false);
-  if (pte != NULL && (*pte & PTE_P) != 0)
+  if (pte != NULL)
     {
 //      printf("setting present bit\n");
       *pte = 0;
