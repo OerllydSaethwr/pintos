@@ -33,7 +33,7 @@ static bool frame_less_func(const struct hash_elem *a,
 }
 
 /* Get a frame of memory for the current thread */
-void *falloc_get_frame(void *upage, PALLOC_FLAGS flag)
+void *falloc_get_frame(void *upage, PALLOC_FLAGS flag, page_type type)
 {
 
 //  printf("getting frame for : %p\n",upage);
@@ -45,7 +45,8 @@ void *falloc_get_frame(void *upage, PALLOC_FLAGS flag)
 
   if (kpage == NULL) {
     /* Evict to make space*/
-//    evict_frame();
+    //chosssen = choose_evict();
+//    struct placement = evict_frame(chossen);
     kpage = palloc_get_page(flag);
     ASSERT(kpage != NULL);
   }

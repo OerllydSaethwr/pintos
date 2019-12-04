@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <vm/utils.h>
 #include "threads/pte.h"
 #include "filesys/off_t.h"
 
@@ -34,6 +35,7 @@ struct supp_entry {
   //uint32_t zero_bytes;
   bool writeable;
   enum location location;
+  page_type type;
 };
 
 

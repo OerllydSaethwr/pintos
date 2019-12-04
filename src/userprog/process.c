@@ -7,6 +7,7 @@
 #include <string.h>
 #include <threads/synch.h>
 #include <vm/mmap.h>
+#include <vm/utils.h>
 #include "vm/frame.h"
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
@@ -309,9 +310,8 @@ struct Elf32_Phdr
 
 static bool setup_stack (void **esp);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
-static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
-                          uint32_t read_bytes, uint32_t zero_bytes,
-                          bool writable);
+static bool load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t read_bytes,
+                         uint32_t zero_bytes, bool writable, page_type type);
 
 /* Loads an ELF executable from FILE_NAME into the current thread.
    Stores the executable's entry point into *EIP
@@ -421,8 +421,9 @@ bool load (const char *file_name, void (**eip) (void), void **esp) {
               supp_entry->writeable = writable;
               supp_entry->segment_offset = file_page;
               supp_entry->initial_page = mem_page;
+              supp_entry->type = writable ? EXEC_DATA : EXEC_CODE;
               create_fake_entries((void *) mem_page, read_bytes, zero_bytes, supp_entry);
-              if (!load_segment_lazy(file, supp_entry, (void *) mem_page)) {
+              if (!load_segment_lazy(file, supp_entry, (void *) mem_page, NULL)) {
                 goto done;
               }
             }
@@ -508,8 +509,8 @@ validate_segment (const struct Elf32_Phdr *phdr, struct file *file)
    Return true if successful, false if a memory allocation error
    or disk read error occurs. */
 static bool
-load_segment (struct file *file, off_t ofs, uint8_t *upage,
-              uint32_t read_bytes, uint32_t zero_bytes, bool writable) 
+load_segment(struct file *file, off_t ofs, uint8_t *upage, uint32_t read_bytes,
+             uint32_t zero_bytes, bool writable, page_type type) 
 {
   ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
   ASSERT (pg_ofs (upage) == 0);
@@ -527,7 +528,8 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
       /* Get a page of memory. */
-      uint8_t *kpage = falloc_get_frame(upage, PAL_USER);
+      //TODO: check 
+      uint8_t *kpage = falloc_get_frame(upage, PAL_USER, type);
       if (kpage == NULL)
         return false;
 
@@ -542,6 +544,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       /* Add the page to the process's address space. */
       if (!install_page (upage, kpage, writable)) 
         {
+        printf("writable:  %d", writable);
           falloc_free_frame (kpage);
           return false; 
         }
@@ -557,7 +560,8 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   return true;
 }
 
-bool load_segment_lazy(struct file *file, struct supp_entry *supp_entry, uint8_t *upage) {
+bool load_segment_lazy(struct file *file, struct supp_entry *supp_entry,
+                       uint8_t *upage, page_type type) {
   uint32_t offset = (uint32_t) upage - supp_entry->initial_page;
 
   uint32_t read_bytes = offset > supp_entry->read_bytes ? 0 : (supp_entry->read_bytes - offset);
@@ -568,7 +572,8 @@ bool load_segment_lazy(struct file *file, struct supp_entry *supp_entry, uint8_t
 
   ASSERT(read_bytes + zero_bytes == PGSIZE);
 
-  bool success = load_segment(file, offset + supp_entry->segment_offset, upage, read_bytes, zero_bytes, supp_entry->writeable);
+  bool success = load_segment(file, offset + supp_entry->segment_offset, upage,
+                              read_bytes, zero_bytes, supp_entry->writeable, type);
   return success;
 }
 
@@ -596,7 +601,7 @@ setup_stack (void **esp)
   uint8_t *kpage;
   bool success = false;
 
-  kpage = falloc_get_frame(((uint8_t *) PHYS_BASE) - PGSIZE, PAL_USER);
+  kpage = falloc_get_frame(((uint8_t *) PHYS_BASE) - PGSIZE, PAL_USER, STACK);
 
   if (kpage != NULL) 
     {

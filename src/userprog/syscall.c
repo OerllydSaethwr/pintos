@@ -365,10 +365,11 @@ static void mmap (void **argv) {
       supp_entry->segment_offset = 0;
       supp_entry->location = FSYS;
       supp_entry->writeable = true;
+      supp_entry->type = MMAP;
 
       create_fake_entries(valp, size, PGSIZE - (size % PGSIZE), supp_entry);
 
-      load_segment_lazy(new_instance, supp_entry, valp);
+      load_segment_lazy(new_instance, supp_entry, valp, MMAP);
 
       struct mmap_entry* me = malloc(sizeof(struct mmap_entry));
 

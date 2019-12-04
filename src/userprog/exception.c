@@ -167,9 +167,10 @@ page_fault (struct intr_frame *f)
         goto die;
       }
     } else if (supp_entry != NULL) {
-      load_segment_lazy (supp_entry->file, supp_entry, pg_round_down (fault_addr));
+      load_segment_lazy(supp_entry->file, supp_entry, pg_round_down(fault_addr),
+                        supp_entry->type);
     } else if (is_stack_access(fault_addr, esp)) {
-      void *kernel_address = falloc_get_frame(up_address, PAL_USER);
+      void *kernel_address = falloc_get_frame(up_address, PAL_USER, STACK);
       install_page (up_address, kernel_address, true);
     } else {
       goto die;

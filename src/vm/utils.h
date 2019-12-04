@@ -10,5 +10,10 @@
 
 
 bool is_stack_access(const void *ptr, void *esp);
-
+typedef enum page_type {
+  STACK,
+  MMAP,
+  EXEC_CODE,
+  EXEC_DATA
+} page_type;
 #endif

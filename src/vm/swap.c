@@ -4,6 +4,8 @@
 
 #include "devices/block.h"
 #include "swap.h"
+#include "userprog/pagedir.h"
+#include "frame.h"
 
 struct swap_table swap_table;
 
@@ -13,6 +15,11 @@ void swap_init() {
   swap_table.block_device = swap_device;
 }
 
+
+struct supp_entry* evict(struct frame *frame) {
+
+
+}
 
 
 
