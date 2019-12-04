@@ -5,7 +5,6 @@
 #include "threads/palloc.h"
 /* Frame table entry */
 struct frame {
-  uint32_t frame_no;
   struct thread *process;
   struct hash_elem hash_elem;
 
@@ -16,4 +15,6 @@ struct frame {
 /* Initialize frame table */
 void frame_init(void);
 void *falloc_get_frame(void *upage, PALLOC_FLAGS flag);
+void falloc_free_frame(void *kpage);
+void print_hash_entries(struct hash_elem *e, void *aux);
 #endif

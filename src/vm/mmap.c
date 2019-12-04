@@ -7,6 +7,7 @@
 #include "threads/synch.h"
 #include "mmap.h"
 #include "threads/malloc.h"
+#include "frame.h"
 #include <stdio.h>
 
 static unsigned mmap_hash(const struct hash_elem *, void *);
@@ -70,7 +71,12 @@ void unmap_hash (struct hash_elem *e, void *aux UNUSED) {
       file_write(me->file, curr_loc, read_bytes);
     }
 
+    if (addr != NULL) {
+      falloc_free_frame (addr);
+    }
+
     pagedir_clear_page(thread_current()->pagedir, curr_loc);
+
 
     curr_offset += PGSIZE;
   }
