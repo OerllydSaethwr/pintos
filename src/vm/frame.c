@@ -26,7 +26,7 @@ struct frame *frame_to_evict(void) {
     barrier();
 
     if (!pagedir_is_accessed(frame->process->pagedir, frame->supp->upage)) {
-      if (list_next(curr) == NULL) {
+      if (curr->next == &circular.tail) {
         oldest_entry = list_entry(list_begin(&circular),
                                                 struct frame, list_elem);
       } else {
@@ -40,10 +40,11 @@ struct frame *frame_to_evict(void) {
     }
 
     curr = curr->next;
-    if (curr->next == NULL) {
-      frame = list_entry(curr, struct frame, list_elem);
-    } else {
+    if (curr == &circular.tail) {
+      frame = list_entry(list_front(&circular), struct frame, list_elem);
       curr = list_front(&circular);
+    } else {
+      frame = list_entry(curr, struct frame, list_elem);
     }
   }
 }
@@ -74,13 +75,15 @@ static bool frame_less_func(const struct hash_elem *a,
 struct frame *falloc_get_frame(void *upage)
 {
   ASSERT(is_user_vaddr(upage));
-  void *kpage = palloc_get_page(PAL_USER);
   lock_acquire(&frame_lock);
+  void *kpage = palloc_get_page(PAL_USER);
 
   retry:
   if (kpage == NULL) {
+    lock_release(&frame_lock);
     /* Evict to make space*/
     evict_frame(frame_to_evict());
+    lock_acquire(&frame_lock);
     kpage = palloc_get_page(PAL_USER);
     goto retry;
   }
