@@ -5,6 +5,7 @@
 #include "threads/malloc.h"
 #include "threads/thread.h"
 #include "frame.h"
+#include "swap.h"
 #include "debug.h"
 
 static unsigned frame_hash(const struct hash_elem *, void *);
@@ -14,6 +15,14 @@ static bool frame_less_func(const struct hash_elem *,
 
 struct hash frame_table;
 struct lock frame_lock;
+
+static struct frame* frame_to_evict(void){
+  struct frame temp;
+  temp.kaddr = (void *) 0xc0271000;
+  struct hash_elem *elem = hash_find (&frame_table, &temp.hash_elem);
+  return hash_entry (elem, struct frame, hash_elem);
+}
+
 void frame_init(void) {
   hash_init(&frame_table, frame_hash, frame_less_func, NULL);
   lock_init(&frame_lock);
@@ -46,11 +55,15 @@ void *falloc_get_frame(void *upage, PALLOC_FLAGS flag, page_type type,
 
   if (kpage == NULL) {
     /* Evict to make space*/
-    //chosssen = choose_evict();
-//    struct placement = evict_frame(chossen);
+    struct frame *chosen = frame_to_evict();
+    struct thread *thread = chosen->process;
+    struct supp_entry *placement = evict_frame(chosen);
+    pagedir_set_page (thread->pagedir, upage, placement,
+                      placement->writeable, FAKE);
     kpage = palloc_get_page(flag);
     ASSERT(kpage != NULL);
   }
+
   struct frame *new = (struct frame *) malloc(sizeof(struct frame));
 
   if (new == NULL) {

@@ -25,7 +25,7 @@ void swap_init() {
 
 
 
-struct supp_entry* evict(struct frame *frame) {
+struct supp_entry *evict_frame(struct frame *frame) {
   page_type type = frame->page_type;
   switch (type){
     case STACK:
@@ -48,12 +48,13 @@ struct supp_entry *swap_to_file_or_discard(struct frame *frame) {
   return (pagedir_is_dirty(thread_current()->pagedir, frame->uaddr) ? swap_to_file(frame) : swap_to_discard(frame));
 }
 
-struct supp_entry* swap_to_discard(struct frame *frame){
+struct supp_entry *swap_to_discard(struct frame *frame){
   uint32_t  *kaddr = frame->kaddr;
 
   struct supp_entry *supp = malloc(sizeof(struct supp_entry));
   supp->location = FSYS;
   supp->file = frame->file;
+  supp->writeable = pagedir_is_writeable(frame->process->pagedir, frame->uaddr);
   falloc_free_frame(kaddr);
   return supp;
 }
@@ -70,20 +71,22 @@ struct supp_entry *swap_to_swap(struct frame *frame) {
   struct supp_entry *supp = malloc(sizeof(struct supp_entry));
   supp->location = SWAP;
   supp->file = (void *) free_sector;
+  supp->writeable = true;
+  supp->read_bytes = PGSIZE;
   falloc_free_frame(kaddr);
   return supp;
 }
 
 struct supp_entry *swap_to_file(struct frame *frame) {
-  if (pagedir_is_dirty(thread_current()->pagedir, frame->uaddr)) {
     uint32_t ofs = (uint32_t) frame->uaddr - (uint32_t) frame->m_entry->location_of_file;
     uint32_t num_of_bytes = file_length(frame->m_entry->file) - ofs;
     file_seek(frame->m_entry->file, ofs);
     file_write(frame->m_entry->file, frame->uaddr, num_of_bytes);
-  }
+
   struct supp_entry *supp = malloc(sizeof(struct supp_entry));
   supp->location = FSYS;
   supp->file = frame->file;
+  supp->writeable = true;
   falloc_free_frame(frame->kaddr);
   return supp;
 }

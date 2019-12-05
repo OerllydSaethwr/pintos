@@ -128,8 +128,7 @@ kill (struct intr_frame *f)
    description of "Interrupt 14--Page Fault Exception (#PF)" in
    [IA32-v3a] section 5.15 "Exception and Interrupt Reference". */
 static void
-page_fault (struct intr_frame *f)
-{
+page_fault (struct intr_frame *f) {
   bool not_present;  /* True: not-present page, false: writing r/o page. */
   bool write;        /* True: access was write, false: access was read. */
   bool user;         /* True: access by user, false: access by kernel. */
@@ -157,21 +156,24 @@ page_fault (struct intr_frame *f)
   user = (f->error_code & PF_U) != 0;
 
   void *up_address = pg_round_down (fault_addr);
-  void *esp = ((void *) f->eip > PHYS_BASE ? *thread_current()->esp : f->esp);
+  void *esp = ((void *) f->eip > PHYS_BASE ? *thread_current ()->esp : f->esp);
 
-  if(is_user_vaddr (fault_addr)) {
-    void *fault_upage = pagedir_get_page(thread_current()->pagedir, up_address);
-    struct supp_entry *supp_entry = pagedir_get_fake(thread_current ()->pagedir, fault_addr);
+  if (is_user_vaddr (fault_addr)) {
+    void *fault_upage = pagedir_get_page (thread_current ()->pagedir,
+                                          up_address);
+    struct supp_entry *supp_entry = pagedir_get_fake (
+      thread_current ()->pagedir, fault_addr);
     if (fault_upage != NULL) {
-      if (!pagedir_is_writeable(thread_current()->pagedir, up_address)) {
+      if (!pagedir_is_writeable (thread_current ()->pagedir, up_address)) {
         goto die;
       }
     } else if (supp_entry != NULL) {
-      load_segment_lazy(supp_entry, pg_round_down(fault_addr),
-                        supp_entry->type);
-    } else if (is_stack_access(fault_addr, esp)) {
-      void *kernel_address = falloc_get_frame(up_address, PAL_USER, STACK, NULL,
-                                              NULL);
+      load_segment_lazy (supp_entry, pg_round_down (fault_addr),
+                         supp_entry->type);
+    } else if (is_stack_access (fault_addr, esp)) {
+      void *kernel_address = falloc_get_frame (up_address, PAL_USER, STACK,
+                                               NULL,
+                                               NULL);
       install_page (up_address, kernel_address, true);
     } else {
       goto die;
