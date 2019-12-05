@@ -315,34 +315,36 @@ static bool valid_pointer (void *pointer, bool check_writable) {
   if (pointer == NULL || !is_user_vaddr(pointer)) {
     return false;
   }
-
-  void *upage = pg_round_down(pointer);
-
-  void *kpage = pagedir_get_page(thread_current()->pagedir, upage);
-  if (kpage != NULL) {
-    if (check_writable) {
-      return pagedir_is_writeable(thread_current()->pagedir, upage);
-    }
-    return true;
-  }
-
-  struct supp_entry *supp_entry = pagedir_get_fake(thread_current()->pagedir, upage);
-
-  if (supp_entry) {
-    if (check_writable) {
-      return supp_entry->writeable;
-    }
-    //load_segment_lazy(supp_entry, upage, EXEC_DATA);
-    return true;
-  }
-
-  if (is_stack_access(pointer, *thread_current()->esp)) {
-    //void *kernel_address = falloc_get_frame(upage, PAL_USER, STACK, NULL);
-    //install_page (upage, kernel_address, true);
-    return true;
-  }
-
-  return false;
+  return true;
+//
+//  void *upage = pg_round_down(pointer);
+//
+//  void *kpage = pagedir_get_page(thread_current()->pagedir, upage);
+//  if (kpage != NULL) {
+//    if (check_writable) {
+//      return pagedir_is_writeable(thread_current()->pagedir, upage);
+//    }
+//    return true;
+//  }
+//
+//  struct supp_entry *supp_entry = pagedir_get_fake(thread_current()->pagedir, upage);
+//
+//  if (supp_entry) {
+//    if (check_writable) {
+//      return supp_entry->writeable;
+//    }
+//    //load_segment_lazy(supp_entry, upage, EXEC_DATA);
+//    return true;
+//  }
+//
+//  if (is_stack_access(pointer, *thread_current()->esp)) {
+//    //void *kernel_address = falloc_get_frame(upage, PAL_USER, STACK, NULL);
+//    //install_page (upage, kernel_address, true);
+//    return true;
+//  }
+//
+//  return false;
+  return true;
 }
 
 static bool is_writable(void *pointer) {
@@ -390,21 +392,12 @@ static void mmap (void **argv) {
         !overlapping_mapped_mem(size, valp)) {
       struct file *new_instance = file_reopen(file_desc->actual_file);
 
-      struct supp_entry* supp_entry = malloc(sizeof(struct supp_entry));
-      supp_entry->file = new_instance;
-      supp_entry->read_bytes = size;
-      supp_entry->initial_page = (uint32_t) valp;
-      supp_entry->segment_offset = 0;
-      supp_entry->location = FSYS;
-      supp_entry->writeable = true;
-      supp_entry->type = MMAP;
 
-      create_fake_entries(valp, size, PGSIZE - (size % PGSIZE), supp_entry, IN_FSYS,true, new_instance, 0);
+      create_fake_entries(valp, size, PGSIZE - (size % PGSIZE), IN_FSYS, true,
+                          new_instance, 0, MMAP);
 
 
       struct mmap_entry* me = malloc(sizeof(struct mmap_entry));
-
-      supp_entry->map_entry = me;
 
       me->map_id = allocate_map_id();
       me->location_of_file = valp;

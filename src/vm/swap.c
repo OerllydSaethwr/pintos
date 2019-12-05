@@ -78,17 +78,17 @@ struct supp_entry *swap_to_swap(struct frame *frame) {
 }
 
 struct supp_entry *swap_to_file(struct frame *frame) {
-    uint32_t ofs = (uint32_t) frame->uaddr - (uint32_t) frame->m_entry->location_of_file;
-    uint32_t num_of_bytes = file_length(frame->m_entry->file) - ofs;
-    file_seek(frame->m_entry->file, ofs);
-    file_write(frame->m_entry->file, frame->uaddr, num_of_bytes);
-
-  struct supp_entry *supp = malloc(sizeof(struct supp_entry));
-  supp->location = FSYS;
-  supp->file = frame->file;
-  supp->writeable = true;
-  falloc_free_frame(frame->kaddr);
-  return supp;
+//    uint32_t ofs = (uint32_t) frame->uaddr - (uint32_t) frame->m_entry->location_of_file;
+//    uint32_t num_of_bytes = file_length(frame->m_entry->file) - ofs;
+//    file_seek(frame->m_entry->file, ofs);
+//    file_write(frame->m_entry->file, frame->uaddr, num_of_bytes);
+//
+//  struct supp_entry *supp = malloc(sizeof(struct supp_entry));
+//  supp->location = FSYS;
+//  supp->file = frame->file;
+//  supp->writeable = true;
+//  falloc_free_frame(frame->kaddr);
+  return NULL;
 }
 
 static inline size_t find_free_sector(void){

@@ -154,45 +154,39 @@ page_fault (struct intr_frame *f) {
   not_present = (f->error_code & PF_P) == 0;
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
-
   void *up_address = pg_round_down (fault_addr);
   void *esp = ((void *) f->eip > PHYS_BASE ? *thread_current ()->esp : f->esp);
-
+  printf("fault address %p\n", up_address);
   if (is_user_vaddr(fault_addr)) {
-#ifdef USE_SUPP_TABLE
     void *fault_upage = pagedir_get_page(thread_current()->pagedir,
                                            up_address);
-      struct addr_info *addr_info = get_addr_info_entry((uint32_t) up_address);
-#endif
-#ifndef USE_SUPP_TABLE
-    void *fault_upage = pagedir_get_page(thread_current()->pagedir,
-                                           up_address);
-      struct supp_entry *supp_entry = pagedir_get_fake(
-          thread_current()->pagedir, fault_addr);
-#endif
+    struct addr_info *addr_info = get_addr_info_entry((uint32_t) up_address);
     if (fault_upage != NULL) {
       if (!pagedir_is_writeable (thread_current ()->pagedir, up_address)) {
+        printf("not writable pg address %p\n", up_address);
+
         goto die;
       }
     }
-#ifndef USE_SUPP_TABLE
-    else if (supp_entry != NULL) {
-      load_segment_lazy (supp_entry, pg_round_down (fault_addr),
-                         supp_entry->type, NULL);
-    }
-#endif
-#ifdef USE_SUPP_TABLE
-    else if (addr_info != NULL) {
-      load_segment_lazy (NULL, up_address,
-                         addr_info->type, addr_info);
-    }
-#endif
 
+    else if (addr_info != NULL) {
+      printf("lazy load pg address %p\n", up_address);
+
+      load_segment_lazy(up_address,
+                        addr_info->type, addr_info);
+    }
     else if (is_stack_access (fault_addr, esp)) {
-      void *kernel_address = falloc_get_frame(up_address, PAL_USER, STACK,
-                                              NULL);
+      printf("stack access pg address %p\n", up_address);
+
+      struct addr_info *addr_info_stack = create_and_insert_spt_page(
+          (uint32_t) up_address, NULL, NULL_INT, NULL_INT, true, IN_MEM, STACK,
+          (uint32_t) up_address, NULL_INT);
+      void *kernel_address = falloc_get_frame(up_address, PAL_USER,
+                                              addr_info_stack);
       install_page (up_address, kernel_address, true);
     } else {
+      printf("die pg address %p\n", up_address);
+
       goto die;
     }
   } else {
@@ -205,35 +199,3 @@ page_fault (struct intr_frame *f) {
     kill (f);
   }
 }
-
-
-//    /* Checking if page fault caused by a syscall,
-//     * if so need to use the saved esp address */
-//
-////  printf("fa: %p , sp: %p esp: %p eip: %p phyb: %p\n", fault_addr, esp, f->esp, f->eip, PHYS_BASE);
-//
-//if (supp_entry == NULL) {
-///* To implement virtual memory, delete the rest of the function
-// body, and replace it with code that brings in the page to
-// which fault_addr refers. */
-//
-///* check whether it's a valid stack access */
-//if (is_stack_access(fault_addr, esp)) {
-//void *kernel_address = get_frame_for_page (up_address, PAL_USER);
-//install_page (up_address, kernel_address, true);
-//} else {
-//goto die;
-//}
-//} else {
-//void *fault_page = pagedir_get_page(thread_current()->pagedir, pg_round_down(fault_addr));
-//if (!fault_page) {
-//load_segment_lazy (supp_entry->file, supp_entry,
-//pg_round_down (fault_addr));
-//} else {
-//if (!pagedir_is_writeable(thread_current()->pagedir, pg_round_down(fault_addr))) {
-//printf("Attempting to write to read-only segment.\n");
-//goto die;
-//}
-//}
-//}
-

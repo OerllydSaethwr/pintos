@@ -42,8 +42,7 @@ static bool frame_less_func(const struct hash_elem *a,
 }
 
 /* Get a frame of memory for the current thread */
-void *falloc_get_frame(void *upage, PALLOC_FLAGS flag, page_type type,
-                       struct file *file)
+void *falloc_get_frame(void *upage, PALLOC_FLAGS flag, struct addr_info *addr_info)
 {
 
 //  printf("getting frame for : %p\n",upage);
@@ -71,10 +70,11 @@ void *falloc_get_frame(void *upage, PALLOC_FLAGS flag, page_type type,
   }
 
   new->process = thread_current();
-  new->kaddr = kpage;
-  new->uaddr = upage;
-  new->page_type = type;
-  new->file = file;
+  new->kaddr = (uint32_t) kpage;
+  new->uaddr = addr_info->uaddr;
+  new->page_type = addr_info->type;
+  new->file = addr_info->file;
+  addr_info->kaddr = new->kaddr;
   hash_apply(&frame_table, print_hash_entries);
   struct hash_elem *success = hash_insert(&frame_table, &new->hash_elem);
   lock_release (&frame_lock);
@@ -108,7 +108,7 @@ void falloc_free_frame(void *kpage) {
   ASSERT(temp.kaddr == hash_entry(e, struct frame, hash_elem)->kaddr);
   ASSERT(!hash_find(&frame_table, e));
   struct frame *frame = hash_entry(e, struct frame, hash_elem);
-  palloc_free_page(frame->kaddr);
+  palloc_free_page((void *) frame->kaddr);
   free(frame);
 }
 

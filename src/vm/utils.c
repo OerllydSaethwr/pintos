@@ -7,7 +7,7 @@
 #include "threads/thread.h"
 #include <stdio.h>
 #include "lib/kernel/hash.h"
-
+#include "threads/malloc.h"
 static unsigned supp_hash(const struct hash_elem *e, void *aux UNUSED);
 static bool supp_less_func(const struct hash_elem *a,
                            const struct hash_elem *b,
@@ -42,6 +42,25 @@ struct addr_info* get_addr_info_entry(uint32_t uaddr){
   return NULL;
 }
 
+struct addr_info*
+create_and_insert_spt_page(uint32_t initial_page, struct file *file,
+                           off_t segment_offset, uint32_t read_bytes,
+                           bool writeable, curr_location location,
+                           page_type type, uint32_t uaddr, uint32_t kaddr) {
+  struct addr_info *addr_info = malloc(sizeof(struct addr_info));
+  addr_info->initial_page = initial_page;
+  addr_info->file = file;
+  addr_info->segment_offset = segment_offset;
+  addr_info->read_bytes = read_bytes;
+  addr_info->writeable = writeable;
+  addr_info->location = location;
+  addr_info->type = type;
+  addr_info->uaddr = uaddr;
+  addr_info->kaddr = kaddr;
+  hash_insert(&thread_current()->supp_table, &addr_info->hash_elem);
+  return addr_info;
+}
+
 
 
   bool is_stack_access(const void *ptr, void *esp)
@@ -51,4 +70,28 @@ struct addr_info* get_addr_info_entry(uint32_t uaddr){
   /* Valid pointer if it's above  esp or 4 below (PUSH) or 32 below (PUSHA) */
   return (ptr >= (const void *) PHYS_BASE - MAX_STACK_SIZE && ptr < PHYS_BASE)
          && (ptr >= esp || ptr == esp - 4 || ptr == esp - 32);
+}
+
+
+void print_addr_info(struct addr_info *ai) {
+  if (ai) {
+
+
+    printf("_________________________________________________________________\n"
+           "initial_page = %x\n"
+           "file = %p\n"
+           "segment_offset = %d\n"
+           "read_bytes = %d\n"
+           "writeable = %d\n"
+           "location = %d\n"
+           "type = %d;\n"
+           "uaddr = %x\n"
+           "kaddr = %x\n"
+           "_________________________________________________________________\n"
+           ,ai->initial_page, ai->file, ai->segment_offset,
+           ai->read_bytes, ai->writeable, ai->location, ai->type, ai->uaddr,
+           ai->kaddr);
+  } else {
+    printf("null");
+  }
 }
