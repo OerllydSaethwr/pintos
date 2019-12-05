@@ -115,6 +115,8 @@ struct thread
     void **esp;                            /* Pointer syscal stack pointer */
     struct hash mmap_table;                /* Hash map for memory mapped files */
     mapid_t mmap_id;                       /* Mapped file id */
+    struct hash supp_table;                /* Supp table to store more info
+                                            * for each address*/
 #endif
 
     /* Owned by thread.c. */

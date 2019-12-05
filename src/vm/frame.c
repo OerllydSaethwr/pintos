@@ -55,12 +55,12 @@ void *falloc_get_frame(void *upage, PALLOC_FLAGS flag, page_type type,
 
   if (kpage == NULL) {
     /* Evict to make space*/
-    struct frame *chosen = frame_to_evict();
-    struct thread *thread = chosen->process;
-    struct supp_entry *placement = evict_frame(chosen);
-    pagedir_set_page (thread->pagedir, upage, placement,
-                      placement->writeable, FAKE);
-    kpage = palloc_get_page(flag);
+//    struct frame *chosen = frame_to_evict();
+//    struct thread *thread = chosen->process;
+//    struct supp_entry *placement = evict_frame(chosen);
+//    pagedir_set_page (thread->pagedir, upage, placement,
+//                      placement->writeable, FAKE);
+//    kpage = palloc_get_page(flag);
     ASSERT(kpage != NULL);
   }
 

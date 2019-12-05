@@ -14,6 +14,7 @@
 #ifdef USERPROG
 #include "userprog/process.h"
 #include "hash.h"
+#include "vm/utils.h"
 #endif
 
 /* Random value for struct thread's `magic' member.
@@ -243,6 +244,7 @@ thread_create (const char *name, int priority,
 
 #ifdef VM
   mmap_table_init(&t->mmap_table);
+  supp_table_init(&t->supp_table);
   t->mmap_id = MAPID_START;
 #endif
 

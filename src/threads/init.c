@@ -11,6 +11,7 @@
 #include "vm/swap.h"
 #include "vm/frame.h"
 #include "vm/mmap.h"
+#include "vm/utils.h"
 #include "devices/kbd.h"
 #include "devices/input.h"
 #include "devices/serial.h"

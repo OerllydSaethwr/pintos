@@ -399,7 +399,7 @@ static void mmap (void **argv) {
       supp_entry->writeable = true;
       supp_entry->type = MMAP;
 
-      create_fake_entries(valp, size, PGSIZE - (size % PGSIZE), supp_entry);
+      create_fake_entries(valp, size, PGSIZE - (size % PGSIZE), supp_entry, IN_FSYS,true, new_instance, 0);
 
 
       struct mmap_entry* me = malloc(sizeof(struct mmap_entry));

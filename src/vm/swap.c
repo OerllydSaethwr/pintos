@@ -41,11 +41,11 @@ struct supp_entry *evict_frame(struct frame *frame) {
 
 
 struct supp_entry *swap_to_discard_or_swap(struct frame *frame) {
-  return (pagedir_is_dirty(thread_current()->pagedir, frame->uaddr) ? swap_to_swap(frame) : swap_to_discard(frame));
+  return (pagedir_is_dirty(frame->process->pagedir, frame->uaddr) ? swap_to_swap(frame) : swap_to_discard(frame));
 }
 
 struct supp_entry *swap_to_file_or_discard(struct frame *frame) {
-  return (pagedir_is_dirty(thread_current()->pagedir, frame->uaddr) ? swap_to_file(frame) : swap_to_discard(frame));
+  return (pagedir_is_dirty(frame->process->pagedir, frame->uaddr) ? swap_to_file(frame) : swap_to_discard(frame));
 }
 
 struct supp_entry *swap_to_discard(struct frame *frame){

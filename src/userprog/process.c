@@ -6,8 +6,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <threads/synch.h>
-#include <vm/mmap.h>
-#include <vm/utils.h>
+#include "vm/mmap.h"
+#include "vm/utils.h"
 #include "vm/frame.h"
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
@@ -312,7 +312,7 @@ static bool setup_stack (void **esp);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment(off_t ofs, uint8_t *upage, uint32_t read_bytes,
                         uint32_t zero_bytes, page_type type,
-                        struct supp_entry *supp_entry);
+                        struct supp_entry *supp_entry, struct addr_info *addr_entry);
 
 /* Loads an ELF executable from FILE_NAME into the current thread.
    Stores the executable's entry point into *EIP
@@ -424,7 +424,7 @@ bool load (const char *file_name, void (**eip) (void), void **esp) {
               supp_entry->initial_page = mem_page;
               supp_entry->type = writable ? EXEC_DATA : EXEC_CODE;
               supp_entry->map_entry = NULL;
-              create_fake_entries((void *) mem_page, read_bytes, zero_bytes, supp_entry);
+              create_fake_entries((void *) mem_page, read_bytes, zero_bytes, supp_entry, IN_FSYS, writable, file, file_page);
             }
           else
             goto done;
@@ -510,12 +510,21 @@ validate_segment (const struct Elf32_Phdr *phdr, struct file *file)
 static bool
 load_segment(off_t ofs, uint8_t *upage, uint32_t read_bytes,
              uint32_t zero_bytes, page_type type,
-             struct supp_entry *supp_entry)
+             struct supp_entry *supp_entry, struct addr_info *addr_entry)
 {
 
-  struct file *file = supp_entry->file;
-  ofs += supp_entry->segment_offset;
-  bool writable = supp_entry->writeable;
+  struct file *file;
+  bool writable;
+
+  if (USE_SUPP_TABLE) {
+    file = addr_entry->file;
+    ofs += addr_entry->segment_offset;
+    writable = addr_entry->writeable;
+  } else {
+    file = supp_entry->file;
+    ofs += supp_entry->segment_offset;
+    writable = supp_entry->writeable;
+  }
 
   ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
   ASSERT (pg_ofs (upage) == 0);
@@ -566,34 +575,60 @@ load_segment(off_t ofs, uint8_t *upage, uint32_t read_bytes,
 }
 
 bool load_segment_lazy(struct supp_entry *supp_entry, uint8_t *upage,
-                       page_type type) {
-  uint32_t offset = (uint32_t) upage - supp_entry->initial_page;
+                       page_type type, struct addr_info *addr_entry) {
 
-  uint32_t read_bytes = offset > supp_entry->read_bytes ? 0 : (supp_entry->read_bytes - offset);
-  read_bytes = read_bytes > PGSIZE ? PGSIZE : read_bytes;
-  uint32_t zero_bytes = PGSIZE - read_bytes;
+  uint32_t offset;
+  uint32_t read_bytes;
+  uint32_t zero_bytes;
+
+  if (USE_SUPP_TABLE) {
+    offset = addr_entry->uaddr - addr_entry->initial_page;
+    read_bytes = offset > addr_entry->read_bytes ? 0 : (addr_entry->read_bytes - offset);
+    read_bytes = read_bytes > PGSIZE ? PGSIZE : read_bytes;
+    zero_bytes = PGSIZE - read_bytes;
+  } else {
+    offset = (uint32_t) upage - supp_entry->initial_page;
+
+    read_bytes = offset > supp_entry->read_bytes ? 0 : (supp_entry->read_bytes - offset);
+    read_bytes = read_bytes > PGSIZE ? PGSIZE : read_bytes;
+    zero_bytes = PGSIZE - read_bytes;
+  };
 
 //  printf("Lazy loading entry at %p\n", upage);
 
   ASSERT(read_bytes + zero_bytes == PGSIZE);
 
-  bool success = load_segment(offset, upage, read_bytes, zero_bytes, type, supp_entry);
+  bool success = load_segment(offset, upage, read_bytes, zero_bytes, type, supp_entry, addr_entry);
   return success;
 }
 
-bool create_fake_entries(uint8_t *upage,uint32_t read_bytes, uint32_t zero_bytes, struct supp_entry* supp_entry) {
+bool create_fake_entries(uint8_t *upage,uint32_t read_bytes, uint32_t zero_bytes,
+    struct supp_entry* supp_entry, curr_location loc, bool writeable, struct file* file,
+        off_t seg_ofs) {
+  uint8_t *curr_upage = upage;
   while (read_bytes > 0 || zero_bytes > 0)
   {
     size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
     size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-    pagedir_set_page(thread_current()->pagedir, upage, supp_entry, supp_entry->writeable, FAKE);
+    if (USE_SUPP_TABLE) {
+      struct addr_info *fake_entry = malloc(sizeof(struct addr_info));
+      fake_entry->initial_page = (uint32_t) upage;
+      fake_entry->uaddr = (uint32_t) curr_upage;
+      fake_entry->read_bytes = page_read_bytes;
+      fake_entry->location = loc;
+      fake_entry->writeable = writeable;
+      fake_entry->segment_offset = seg_ofs;
+
+      hash_insert(&thread_current()->supp_table, &fake_entry->hash_elem);
+    } else {
+      pagedir_set_page(thread_current()->pagedir, curr_upage, supp_entry, supp_entry->writeable, FAKE);
+    }
 
     read_bytes -= page_read_bytes;
     zero_bytes -= page_zero_bytes;
-    upage += PGSIZE;
+    curr_upage += PGSIZE;
   }
-
   return true;
 }
 

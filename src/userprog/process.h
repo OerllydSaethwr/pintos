@@ -22,11 +22,13 @@ void process_exit (void);
 void process_activate (void);
 
 bool load_segment_lazy(struct supp_entry *supp_entry, uint8_t *upage,
-                       page_type type);
+                       page_type type, struct addr_info *addr_entry);
 
 bool lazy_load_page(struct file *file,off_t ofs, uint8_t *upage, bool writable, struct supp_entry *);
 bool install_page (void *upage, void *kpage, bool writable);
-bool create_fake_entries(uint8_t *upage,uint32_t read_bytes, uint32_t zero_bytes, struct supp_entry* supp_entry);
+bool create_fake_entries(uint8_t *upage,uint32_t read_bytes, uint32_t zero_bytes,
+    struct supp_entry* supp_entry, curr_location loc, bool writeable, struct file *file,
+        off_t segment_ofs);
 
 #endif /* userprog/process.h */
 
