@@ -24,34 +24,29 @@ void swap_init() {
 }
 
 struct supp_entry *evict_frame(struct frame *frame) {
-  page_type type;
-  retry:
-  printf("Evicting at %p\n", frame->uaddr);
-  type = frame->page_type;
+
+  list_remove(&frame->list_elem);
+
+  enum page_type type;
+  type = frame->supp->ptype;
   switch (type){
     case STACK:
-      frame = frame_to_evict();
-      printf("Err: attempting to evict stack, retrying...\n");
-      goto retry;
       return swap_to_swap(frame);
     case MMAP:
       return swap_to_file_or_discard(frame);
     case EXEC_CODE:
-      frame = frame_to_evict();
-      printf("Err: attempting to evict executable, retrying...\n");
       return swap_to_discard(frame);
-    case EXEC_DATA:
+    default:
       return swap_to_discard_or_swap(frame);
   }
-  PANIC("Shouldnt get here\n");
 }
 
 struct supp_entry *swap_to_discard_or_swap(struct frame *frame) {
-  return (pagedir_is_dirty(frame->process->pagedir, frame->uaddr) ? swap_to_swap(frame) : swap_to_discard(frame));
+  return (pagedir_is_dirty(frame->process->pagedir, frame->supp->upage) ? swap_to_swap(frame) : swap_to_discard(frame));
 }
 
 struct supp_entry *swap_to_file_or_discard(struct frame *frame) {
-  return (pagedir_is_dirty(frame->process->pagedir, frame->uaddr) ? swap_to_file(frame) : swap_to_discard(frame));
+  return (pagedir_is_dirty(frame->process->pagedir, frame->supp->upage) ? swap_to_file(frame) : swap_to_discard(frame));
 }
 
 struct supp_entry *swap_to_discard(struct frame *frame) {
@@ -59,8 +54,8 @@ struct supp_entry *swap_to_discard(struct frame *frame) {
 
   struct supp_entry *supp = malloc(sizeof(struct supp_entry));
   supp->location = FSYS;
-  supp->file = frame->file;
-  supp->writeable = pagedir_is_writeable(frame->process->pagedir, frame->uaddr);
+  supp->file = frame->supp->file;
+  supp->writeable = pagedir_is_writeable(frame->process->pagedir, frame->supp->upage);
   falloc_free_frame(kaddr);
   return supp;
 }
@@ -87,14 +82,15 @@ struct supp_entry *swap_to_swap(struct frame *frame) {
 }
 
 struct supp_entry *swap_to_file(struct frame *frame) {
-  uint32_t ofs = (uint32_t) frame->uaddr - (uint32_t) frame->m_entry->location_of_file;
-  uint32_t num_of_bytes = file_length(frame->m_entry->file) - ofs;
-  file_seek(frame->m_entry->file, ofs);
-  file_write(frame->m_entry->file, frame->uaddr, num_of_bytes);
+  struct file_descriptor *fd = hash_entry(frame->supp->mapping,struct file_descriptor, thread_hash_elem);
+  uint32_t ofs = (uint32_t) frame->supp->upage - (uint32_t) fd->upage;
+  uint32_t num_of_bytes = file_length(frame->supp->file) - ofs;
+  file_seek(frame->supp->file, ofs);
+  file_write(frame->supp->file, frame->supp->upage, num_of_bytes);
 
   struct supp_entry *supp = malloc(sizeof(struct supp_entry));
   supp->location = FSYS;
-  supp->file = frame->file;
+  supp->file = frame->supp->upage;
   supp->writeable = true;
   falloc_free_frame(frame->kaddr);
   return supp;

@@ -1,5 +1,6 @@
 #ifndef PINTOS_08_FRAME_H
 #define PINTOS_08_FRAME_H
+#define RESET_ACCESS_BITS 10
 
 #include <hash.h>
 #include "threads/palloc.h"
@@ -13,7 +14,15 @@ struct frame {
   struct hash_elem hash_elem;
   void *kaddr;  /* Address in kernal */
   struct supp_entry *supp;
+  struct list_elem list_elem;
 };
+
+struct circular_queue {
+  struct list circular;
+  void *oldest_entry;
+};
+
+static struct circular_queue eviction_list;
 
 /* Initialize frame table */
 void frame_init(void);

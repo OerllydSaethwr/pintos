@@ -13,26 +13,37 @@ static bool frame_less_func(const struct hash_elem *,
                             const struct hash_elem *,
                             void *);
 
+static void set_accessed_bits_to_0(void);
+
 struct hash frame_table;
 struct lock frame_lock;
 
 struct frame *frame_to_evict(void) {
-  static uint32_t cnt = 0;
-  static const void *start = (void *) 0xc0271000;
-  struct frame temp;
-  retry:
-  temp.kaddr = (void *) start + ((cnt++) * PGSIZE);
-  struct hash_elem *elem = hash_find (&frame_table, &temp.hash_elem);
-  if (!elem) {
-    cnt = 0;
-    goto retry;
+  struct frame *frame = eviction_list.oldest_entry;
+  struct list_elem curr = frame->list_elem;
+
+  while (true) {
+    if (!pagedir_is_accessed(thread_current()->pagedir, frame->supp->upage)) {
+      if (list_next(&curr) == NULL) {
+        eviction_list.oldest_entry = list_entry(list_front(&eviction_list.circular), struct frame, list_elem);
+      } else {
+        eviction_list.oldest_entry = list_entry(list_next(&curr), struct frame, list_elem);
+      }
+      return frame;
+
+    } else {
+      pagedir_set_accessed(thread_current()->pagedir, frame->supp->upage, 0);
+    }
+
+    curr = *list_next(&curr);
+    frame = list_entry(list_next(&curr), struct frame, list_elem);
   }
-  return hash_entry (elem, struct frame, hash_elem);
 }
 
 void frame_init(void) {
   hash_init(&frame_table, frame_hash, frame_less_func, NULL);
   lock_init(&frame_lock);
+  list_init(&eviction_list.circular);
 }
 
 static unsigned frame_hash(const struct hash_elem *e, void *aux UNUSED) {
@@ -56,12 +67,13 @@ void *falloc_get_frame(void *upage)
   void *kpage = palloc_get_page(PAL_USER);
   lock_acquire(&frame_lock);
 
+  static int frames_allocated = 0;
+
   if (kpage == NULL) {
     /* Evict to make space*/
-    PANIC("Unable to allocate frame.\n");
     struct frame *chosen = frame_to_evict();
     struct thread *thread = chosen->process;
-    struct supp_entry *placement = evict_frame(chosen);
+    struct supp_entry *placement = swap_to_swap(chosen);
     pagedir_set_page (thread->pagedir, upage, placement,
                       placement->writeable, FAKE);
     kpage = palloc_get_page(PAL_USER);
@@ -70,9 +82,22 @@ void *falloc_get_frame(void *upage)
 
   struct frame *new = (struct frame *) malloc(sizeof(struct frame));
 
+  ++frames_allocated;
+
+//  if (frames_allocated == RESET_ACCESS_BITS) {
+//    frames_allocated = 0;
+//    set_accessed_bits_to_0();
+//  }
+
   if (new == NULL) {
     PANIC("Out of kernel memory.\n");
   }
+//  barrier();
+//  printf("here\n");
+  list_push_back(&eviction_list.circular, &new->list_elem);
+//  if (list_size(&eviction_list.circular) == 1) {
+//    eviction_list.oldest_entry = &new;
+//  }
 
   new->process = thread_current();
   new->kaddr = kpage;
@@ -110,4 +135,15 @@ void print_hash_entries(struct hash_elem *e, void *aux UNUSED) {
   struct frame *frame = hash_entry(e, struct frame, hash_elem);
   printf("Frame has kaddr %p\n", frame->kaddr);
 }
+
+static void set_accessed_bits_to_0(void) {
+  struct list_elem *e;
+  for (e = list_begin (&eviction_list.circular); e != list_end (&eviction_list.circular); e = list_next (e))
+  {
+    struct frame *f = list_entry (e, struct frame, list_elem);
+    pagedir_set_accessed(thread_current()->pagedir,f->supp->upage,0);
+  }
+}
+
+
 
