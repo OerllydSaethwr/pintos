@@ -39,8 +39,8 @@ struct frame *frame_to_evict(void) {
       pagedir_set_accessed(frame->process->pagedir, frame->supp->upage, 0);
     }
 
-    curr = list_next(curr);
-    if (list_next(curr) == NULL) {
+    curr = curr->next;
+    if (curr->next == NULL) {
       frame = list_entry(curr, struct frame, list_elem);
     } else {
       curr = list_front(&circular);
