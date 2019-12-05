@@ -26,6 +26,9 @@ void swap_init() {
 
 
 struct supp_entry *evict_frame(struct frame *frame) {
+
+  list_remove(&frame->list_elem);
+
   page_type type = frame->page_type;
   switch (type){
     case STACK:

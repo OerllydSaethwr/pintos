@@ -9,7 +9,7 @@
 #ifndef UTILS
 #define UTILS
 #define MAX_STACK_SIZE 10485760  /* 10 MiB hard maximum for stack*/
-#define USE_SUPP_TABLE 1
+#define USE_SUPP_TABLE 0
 
 
 bool is_stack_access(const void *ptr, void *esp);
@@ -45,6 +45,7 @@ struct addr_info {
   uint32_t kaddr;
   bool need_to_retrieve;
 };
+
 
 
 #endif
