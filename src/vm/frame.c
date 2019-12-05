@@ -1,4 +1,5 @@
 #include <kernel/hash.h>
+#include <kernel/list.h>
 #include <stdio.h>
 #include "threads/palloc.h"
 #include "threads/vaddr.h"
@@ -13,37 +14,45 @@ static bool frame_less_func(const struct hash_elem *,
                             const struct hash_elem *,
                             void *);
 
-static void set_accessed_bits_to_0(void);
 
 struct hash frame_table;
 struct lock frame_lock;
-
+struct list circular;
+void *oldest_entry;
 struct frame *frame_to_evict(void) {
-  struct frame *frame = eviction_list.oldest_entry;
-  struct list_elem curr = frame->list_elem;
+  struct frame *frame = oldest_entry;
+  struct list_elem *curr = &frame->list_elem;
 
   while (true) {
-    if (!pagedir_is_accessed(thread_current()->pagedir, frame->supp->upage)) {
-      if (list_next(&curr) == NULL) {
-        eviction_list.oldest_entry = list_entry(list_front(&eviction_list.circular), struct frame, list_elem);
+    barrier();
+
+    if (!pagedir_is_accessed(frame->process->pagedir, frame->supp->upage)) {
+      if (list_next(curr) == NULL) {
+        oldest_entry = list_entry(list_begin(&circular),
+                                                struct frame, list_elem);
       } else {
-        eviction_list.oldest_entry = list_entry(list_next(&curr), struct frame, list_elem);
+        oldest_entry = list_entry(list_next(curr), struct frame,
+                                                list_elem);
       }
       return frame;
 
     } else {
-      pagedir_set_accessed(thread_current()->pagedir, frame->supp->upage, 0);
+      pagedir_set_accessed(frame->process->pagedir, frame->supp->upage, 0);
     }
 
-    curr = *list_next(&curr);
-    frame = list_entry(list_next(&curr), struct frame, list_elem);
+    curr = list_next(curr);
+    if (list_next(curr) == NULL) {
+      frame = list_entry(curr, struct frame, list_elem);
+    } else {
+      curr = list_front(&circular);
+    }
   }
 }
 
 void frame_init(void) {
   hash_init(&frame_table, frame_hash, frame_less_func, NULL);
   lock_init(&frame_lock);
-  list_init(&eviction_list.circular);
+  list_init(&circular);
 }
 
 static unsigned frame_hash(const struct hash_elem *e, void *aux UNUSED) {
@@ -71,6 +80,7 @@ void *falloc_get_frame(void *upage)
 
   if (kpage == NULL) {
     /* Evict to make space*/
+    printf("kpage null\n");
     struct frame *chosen = frame_to_evict();
     struct thread *thread = chosen->process;
     struct supp_entry *placement = swap_to_swap(chosen);
@@ -80,24 +90,23 @@ void *falloc_get_frame(void *upage)
     ASSERT(kpage != NULL);
   }
 
-  struct frame *new = (struct frame *) malloc(sizeof(struct frame));
+  struct frame *new =  malloc(sizeof(struct frame));
 
   ++frames_allocated;
 
-//  if (frames_allocated == RESET_ACCESS_BITS) {
-//    frames_allocated = 0;
-//    set_accessed_bits_to_0();
-//  }
+  if (frames_allocated == RESET_ACCESS_BITS) {
+    frames_allocated = 0;
+  }
 
   if (new == NULL) {
     PANIC("Out of kernel memory.\n");
   }
 //  barrier();
-//  printf("here\n");
-  list_push_back(&eviction_list.circular, &new->list_elem);
-//  if (list_size(&eviction_list.circular) == 1) {
-//    eviction_list.oldest_entry = &new;
-//  }
+//  printf("here: %p\n",  &(new->list_elem));
+  list_push_front(&circular, &(new->list_elem));
+  if (list_size(&circular) == 1) {
+    oldest_entry = new;
+  }
 
   new->process = thread_current();
   new->kaddr = kpage;
@@ -116,34 +125,40 @@ void falloc_free_frame(void *kpage) {
   struct frame temp;
 
   temp.kaddr = kpage;
+  lock_acquire(&frame_lock);
 
   struct hash_elem *e = hash_find(&frame_table, &temp.hash_elem);
   if (!e) {
     return;
   }
 
-  hash_delete(&frame_table, e);
-
   ASSERT(temp.kaddr == hash_entry(e, struct frame, hash_elem)->kaddr);
-  ASSERT(!hash_find(&frame_table, e));
   struct frame *frame = hash_entry(e, struct frame, hash_elem);
+  if (oldest_entry == frame) {
+    if (list_next(&frame->list_elem) == NULL) {
+      oldest_entry = list_entry(list_front(&circular),
+                                              struct frame,
+                                              list_elem);
+    } else {
+      oldest_entry = list_entry(list_next(&frame->list_elem),
+                                              struct frame, list_elem);
+    }
+  }
+  list_remove(&frame->list_elem);
+
   palloc_free_page(frame->kaddr);
+  hash_delete(&frame_table, e);
   free(frame);
+  lock_release(&frame_lock);
+
 }
+
 
 void print_hash_entries(struct hash_elem *e, void *aux UNUSED) {
   struct frame *frame = hash_entry(e, struct frame, hash_elem);
-  printf("Frame has kaddr %p\n", frame->kaddr);
+//  printf("Frame has kaddr %p\n", frame->kaddr);
 }
 
-static void set_accessed_bits_to_0(void) {
-  struct list_elem *e;
-  for (e = list_begin (&eviction_list.circular); e != list_end (&eviction_list.circular); e = list_next (e))
-  {
-    struct frame *f = list_entry (e, struct frame, list_elem);
-    pagedir_set_accessed(thread_current()->pagedir,f->supp->upage,0);
-  }
-}
 
 
 

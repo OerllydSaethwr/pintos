@@ -166,6 +166,8 @@ page_fault (struct intr_frame *f) {
       thread_current ()->pagedir, fault_addr);
     if (fault_upage != NULL) {
       if (!pagedir_is_writeable (thread_current ()->pagedir, up_address)) {
+//        printf("unwritable\n");
+
         goto die;
       }
     } else if (supp_entry != NULL) {
@@ -174,9 +176,11 @@ page_fault (struct intr_frame *f) {
       void *kernel_address = falloc_get_frame (up_address);
       install_page (up_address, kernel_address, true);
     } else {
+//      printf("fall through\n");
       goto die;
     }
   } else {
+//    printf("not user\n");
     die:
     printf ("Page fault at %p: %s error %s page in %s context.\n",
             fault_addr,
