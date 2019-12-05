@@ -11,17 +11,13 @@
 struct frame {
   struct thread *process;
   struct hash_elem hash_elem;
-  struct file *file;
   void *kaddr;  /* Address in kernal */
-  void *uaddr;  /* Address in user space */
-  enum page_type page_type;
-  struct mmap_entry * m_entry;
+  struct supp_entry *supp;
 };
 
 /* Initialize frame table */
 void frame_init(void);
-void *falloc_get_frame(void *upage, PALLOC_FLAGS flag, page_type type,
-                       struct file *file, struct mmap_entry *m_entry);
+void *falloc_get_frame(void *upage);
 void falloc_free_frame(void *kpage);
 struct frame *frame_to_evict(void);
 void print_hash_entries(struct hash_elem *e, void *aux);

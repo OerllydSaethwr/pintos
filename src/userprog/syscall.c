@@ -20,8 +20,6 @@ static void check_pointer (void *pointer, bool writable);
 
 static void check_string_pointer (const char *string);
 
-static bool is_writable(void *pointer);
-
 static bool valid_pointer (void *, bool check_writable);
 
 static void close (void **);
@@ -232,7 +230,7 @@ static void write (void **argv) {
   const char *buffer = *(const char **) argv[1];
   unsigned size = *(unsigned *) argv[2];
   int *eax = (int *) argv[3];
-  check_pointer (buffer, false);
+  check_pointer ((void *) buffer, false);
 
   int bytes_written = 0;
   lock_acquire (&filesystem_lock);
@@ -300,6 +298,18 @@ static void close (void **argv) {
   lock_release (&filesystem_lock);
 }
 
+static void mmap (void **argv) {
+  int fd = *(int *) argv[0];
+  void *addr = *(void **) argv[1];
+  int *eax = (int *) argv[2];
+  *eax = (int) mmap_file(fd, addr);
+}
+
+static void munmap (void **argv) {
+  mmapid_t mapping = *(mmapid_t *) argv[0];
+  mmap_unmap_hash(mapping);
+}
+
 static void check_string_pointer (const char *string) {
   check_pointer ((void *) string, false);
   check_pointer ((void *) string + sizeof (string), false);
@@ -332,22 +342,14 @@ static bool valid_pointer (void *pointer, bool check_writable) {
     if (check_writable) {
       return supp_entry->writeable;
     }
-    //load_segment_lazy(supp_entry, upage, EXEC_DATA);
     return true;
   }
 
   if (is_stack_access(pointer, *thread_current()->esp)) {
-    //void *kernel_address = falloc_get_frame(upage, PAL_USER, STACK, NULL);
-    //install_page (upage, kernel_address, true);
     return true;
   }
 
   return false;
-}
-
-static bool is_writable(void *pointer) {
-  void *upage = pg_round_down(pointer);
-  return pagedir_is_writeable(thread_current()->pagedir, upage);
 }
 
 void kill_process (void) {
@@ -370,74 +372,4 @@ struct file_descriptor *file_descriptor_finder (int fd) {
   }
 
   return NULL;
-}
-
-static void mmap (void **argv) {
-  int fd = *(int *) argv[0];
-  void *valp = *(void **) argv[1];
-  int *eax = (int *) argv[2];
-
-  struct file_descriptor* file_desc = file_descriptor_finder(fd);
-
-  if (file_desc) {
-    uint32_t size = file_length(file_desc->actual_file);
-    //void *valp = (void *) (*(uint32_t  *) (addr));
-
-    //printf("valp : %p\n", valp);
-
-    bool page_aligned = (( (PHYS_BASE - valp) % PGSIZE) == 0);
-    if (size > 0 && valp > 0 && page_aligned &&
-        !overlapping_mapped_mem(size, valp)) {
-      struct file *new_instance = file_reopen(file_desc->actual_file);
-
-      struct supp_entry* supp_entry = malloc(sizeof(struct supp_entry));
-      supp_entry->file = new_instance;
-      supp_entry->read_bytes = size;
-      supp_entry->initial_page = (uint32_t) valp;
-      supp_entry->segment_offset = 0;
-      supp_entry->location = FSYS;
-      supp_entry->writeable = true;
-      supp_entry->type = MMAP;
-
-      create_fake_entries(valp, size, PGSIZE - (size % PGSIZE), supp_entry);
-
-
-      struct mmap_entry* me = malloc(sizeof(struct mmap_entry));
-
-      supp_entry->map_entry = me;
-
-      me->map_id = allocate_map_id();
-      me->location_of_file = valp;
-      me->file = new_instance;
-      me->size = size;
-      hash_insert(&thread_current()->mmap_table, &me->hash_elem);
-
-      *eax = me->map_id;
-      return;
-    }
-  }
-
-  *eax = INVALID;
-}
-
-static void munmap (void **argv) {
-  mapid_t mapping = *(mapid_t *) argv[0];
-  m_unmap(mapping);
-}
-
-
-static bool overlapping_mapped_mem(uint32_t file_size, void *upage) {
-  uint32_t curr_bytes = 0;
-  while (file_size > curr_bytes) {
-    uint32_t new_address = (uint32_t) upage + curr_bytes;
-    void *get_page = pagedir_get_page(thread_current()->pagedir, (void *) (new_address));
-    void *get_fake = pagedir_get_fake(thread_current()->pagedir, (void *) new_address);
-
-    if (is_user_vaddr(upage) && (get_page != NULL || get_fake != NULL)) {
-      return true;
-    }
-
-    curr_bytes += PGSIZE;
-  }
-  return false;
 }

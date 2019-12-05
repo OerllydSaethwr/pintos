@@ -241,11 +241,6 @@ thread_create (const char *name, int priority,
   hash_init(&t->file_hash_descriptors, file_hash, file_hash_less, NULL);
 #endif
 
-#ifdef VM
-  mmap_table_init(&t->mmap_table);
-  t->mmap_id = MAPID_START;
-#endif
-
   intr_set_level (old_level);
 
   /* Add to run queue. */

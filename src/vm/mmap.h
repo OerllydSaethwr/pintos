@@ -9,6 +9,7 @@
 #include <hash.h>
 #include <userprog/pagedir.h>
 #include "userprog/syscall.h"
+#include "filesys/off_t.h"
 
 struct mmap_entry {
   struct hash_elem hash_elem;
@@ -18,9 +19,12 @@ struct mmap_entry {
   uint32_t size;
 };
 
-void mmap_table_init(struct hash *);
-mapid_t allocate_map_id(void);
-void m_unmap(mapid_t);
-void unmap_hash (struct hash_elem *, void * UNUSED);
+typedef struct hash_elem *mmapid_t;
+
+mmapid_t mmap_file(int fd, void *addr);
+mmapid_t mmap_segment(struct file *file, off_t segment_offset, uint32_t read_bytes, void *upage_start);
+
+void mmap_unmap(mmapid_t mapid);
+void mmap_unmap_hash(mmapid_t mapid);
 
 #endif //PINTOS_08_MMAP_H

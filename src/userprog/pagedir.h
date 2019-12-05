@@ -3,11 +3,14 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include <vm/utils.h>
-#include <vm/mmap.h>
 #include "threads/pte.h"
 #include "filesys/off_t.h"
 #include "syscall.h"
+#include "vm/mmap.h"
+#include "vm/utils.h"
+#include <hash.h>
+
+typedef struct hash_elem *mmapid_t;
 
 uint32_t *pagedir_create (void);
 void pagedir_destroy (uint32_t *pd);
@@ -26,18 +29,19 @@ struct supp_entry *pagedir_get_fake(uint32_t *pd, const void *uaddr);
 enum location {
   SWAP,
   FSYS,
-  SHARED
+  LOADED
 };
 
 struct supp_entry {
-  uint32_t initial_page;
+  void *upage;
   struct file *file;
-  off_t segment_offset;
+  off_t offset;
   uint32_t read_bytes;
-  struct mmap_entry *map_entry;
+  uint32_t zero_bytes;
   bool writeable;
   enum location location;
-  page_type type;
+  enum page_type ptype;
+  mmapid_t mapping;
 };
 
 

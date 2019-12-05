@@ -1,6 +1,7 @@
 #include "userprog/exception.h"
 #include <inttypes.h>
 #include <stdio.h>
+#include "threads/malloc.h"
 #include "threads/palloc.h"
 #include "userprog/gdt.h"
 #include "threads/interrupt.h"
@@ -168,20 +169,11 @@ page_fault (struct intr_frame *f) {
         goto die;
       }
     } else if (supp_entry != NULL) {
-      if (up_address == (void *) 0x824b000) {
-        printf("Reading last entry\n");
-      }
-      printf("Faulting in page %p\n", up_address);
-      load_segment_lazy (supp_entry, pg_round_down (fault_addr),
-                         supp_entry->type);
+      load_segment_lazy (supp_entry);
     } else if (is_stack_access (fault_addr, esp)) {
-      printf("Evicting to make space for stack\n");
-      void *kernel_address = falloc_get_frame (up_address, PAL_USER, STACK,
-                                               NULL,
-                                               NULL);
+      void *kernel_address = falloc_get_frame (up_address);
       install_page (up_address, kernel_address, true);
     } else {
-//      printf("Gettgin here\n\n\n");
       goto die;
     }
   } else {
@@ -194,35 +186,3 @@ page_fault (struct intr_frame *f) {
     kill (f);
   }
 }
-
-
-//    /* Checking if page fault caused by a syscall,
-//     * if so need to use the saved esp address */
-//
-////  printf("fa: %p , sp: %p esp: %p eip: %p phyb: %p\n", fault_addr, esp, f->esp, f->eip, PHYS_BASE);
-//
-//if (supp_entry == NULL) {
-///* To implement virtual memory, delete the rest of the function
-// body, and replace it with code that brings in the page to
-// which fault_addr refers. */
-//
-///* check whether it's a valid stack access */
-//if (is_stack_access(fault_addr, esp)) {
-//void *kernel_address = get_frame_for_page (up_address, PAL_USER);
-//install_page (up_address, kernel_address, true);
-//} else {
-//goto die;
-//}
-//} else {
-//void *fault_page = pagedir_get_page(thread_current()->pagedir, pg_round_down(fault_addr));
-//if (!fault_page) {
-//load_segment_lazy (supp_entry->file, supp_entry,
-//pg_round_down (fault_addr));
-//} else {
-//if (!pagedir_is_writeable(thread_current()->pagedir, pg_round_down(fault_addr))) {
-//printf("Attempting to write to read-only segment.\n");
-//goto die;
-//}
-//}
-//}
-

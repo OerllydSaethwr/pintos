@@ -127,6 +127,7 @@ struct file_descriptor {
     struct file *actual_file;             /* New file created in thread */
     struct hash_elem thread_hash_elem;    /* Hash elem to assign to thread */
     int descriptor;                       /* Number associating to file */
+    void *upage;                          /* Location where file is mapped. */
 };
 #endif
 

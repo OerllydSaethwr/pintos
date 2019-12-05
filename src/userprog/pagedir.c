@@ -102,22 +102,18 @@ pagedir_set_page (uint32_t *pd, void *upage, void *kpage, bool writable, enum pt
 {
   uint32_t *pte;
 
-//  printf("in page set\n");
   ASSERT (pg_ofs (upage) == 0);
   //ASSERT (pg_ofs (kpage) == 0);
   ASSERT (is_user_vaddr (upage));
   ASSERT (vtop (kpage) >> PTSHIFT < init_ram_pages);
   ASSERT (pd != init_page_dir);
 
-
   pte = lookup_page (pd, upage, true);
-//  printf("looking for page\n");
 
   if (pte != NULL) 
     {
       ASSERT ((*pte & PTE_P) == 0);
       *pte = pte_create(type, kpage, writable);
-      //*pte = pte_create_user (kpage, writable);
       return true;
     }
   else

@@ -16,6 +16,7 @@
 #define ARG_NUM_MMAP 2
 #define ARG_NUM_MUNMAP 1
 #define INVALID -1
+#define INAVLID_MAPPING 0
 #define STATUS_KILLED -1
 typedef unsigned mapid_t;
 void syscall_init (void);

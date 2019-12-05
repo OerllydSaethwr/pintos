@@ -200,8 +200,12 @@ int process_wait (tid_t child_tid) {
 static void delete_remaining_hash (struct hash_elem *e, void *aux UNUSED) {
   struct file_descriptor *fd = hash_entry (e, struct file_descriptor,
                                            thread_hash_elem);
-  file_close (fd->actual_file);
-  free (fd);
+  if (fd->upage != NULL && fd->upage != DEBUG_FREE) {
+    mmap_unmap(&fd->thread_hash_elem);
+  } else {
+    file_close (fd->actual_file);
+    free (fd);
+  }
 }
 
 /* Free the current process's resources. */
@@ -210,7 +214,6 @@ void process_exit (void) {
   uint32_t *pd;
 
   hash_destroy (&cur->file_hash_descriptors, delete_remaining_hash);
-  hash_destroy (&cur->mmap_table, unmap_hash);
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   pd = cur->pagedir;
@@ -310,9 +313,9 @@ struct Elf32_Phdr
 
 static bool setup_stack (void **esp);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
-static bool load_segment(off_t ofs, uint8_t *upage, uint32_t read_bytes,
-                        uint32_t zero_bytes, page_type type,
-                        struct supp_entry *supp_entry);
+static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
+              uint32_t read_bytes, uint32_t zero_bytes, bool writable);
+
 
 /* Loads an ELF executable from FILE_NAME into the current thread.
    Stores the executable's entry point into *EIP
@@ -416,16 +419,10 @@ bool load (const char *file_name, void (**eip) (void), void **esp) {
 //                     "| vaddr: %p\n"
 //                     "| writable: %d"
 //                     "----------------------------------------\n", read_bytes, zero_bytes, file_page, (void *) mem_page, writable);
-              struct supp_entry *supp_entry = malloc(sizeof(struct supp_entry));
-              supp_entry->file = file;
-              supp_entry->read_bytes = read_bytes;
-              supp_entry->writeable = writable;
-              supp_entry->segment_offset = file_page;
-              supp_entry->initial_page = mem_page;
-              supp_entry->type = writable ? EXEC_DATA : EXEC_CODE;
-              supp_entry->map_entry = NULL;
-              create_fake_entries((void *) mem_page, read_bytes, zero_bytes, supp_entry);
-            }
+                create_fake_multiple((void *) mem_page, file, read_bytes, zero_bytes,
+                    file_page, writable ? EXEC_DATA : EXEC_CODE, writable, NULL);
+
+          }
           else
             goto done;
           break;
@@ -508,99 +505,118 @@ validate_segment (const struct Elf32_Phdr *phdr, struct file *file)
    Return true if successful, false if a memory allocation error
    or disk read error occurs. */
 static bool
-load_segment(off_t ofs, uint8_t *upage, uint32_t read_bytes,
-             uint32_t zero_bytes, page_type type,
-             struct supp_entry *supp_entry)
+load_segment (struct file *file, off_t ofs, uint8_t *upage,
+              uint32_t read_bytes, uint32_t zero_bytes, bool writable)
 {
-
-  struct file *file = supp_entry->file;
-  ofs += supp_entry->segment_offset;
-  bool writable = supp_entry->writeable;
-
   ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
   ASSERT (pg_ofs (upage) == 0);
-  ASSERT (ofs % PGSIZE == 0);
-
-  //printf("loading page into: %p\n", upage);
-
+  //ASSERT (ofs % PGSIZE == 0);
   file_seek (file, ofs);
   while (read_bytes > 0 || zero_bytes > 0)
-    {
-      /* Calculate how to fill this page.
-         We will read PAGE_READ_BYTES bytes from FILE
-         and zero the final PAGE_ZERO_BYTES bytes. */
-      size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
-      size_t page_zero_bytes = PGSIZE - page_read_bytes;
-
-      /* Get a page of memory. */
-      //TODO: check 
-      uint8_t *kpage = falloc_get_frame(upage, PAL_USER, type, file, supp_entry->map_entry);
-      if (kpage == NULL)
-        return false;
-
-      /* Load this page. */
-      if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
-        {
-          falloc_free_frame (kpage);
-          return false; 
-        }
-      memset (kpage + page_read_bytes, 0, page_zero_bytes);
-
-      /* Add the page to the process's address space. */
-      if (!install_page (upage, kpage, writable)) 
-        {
-        printf("writable:  %d", writable);
-          falloc_free_frame (kpage);
-          return false; 
-        }
-
-      /* Advance. */
-//      printf("read_bytes: %d, will be decremented by %lu\n", read_bytes, page_read_bytes);
-//      printf("zero_bytes: %d, will be decremented by %lu\n", zero_bytes, page_zero_bytes);
-//      printf("*********\n");
-      read_bytes -= page_read_bytes;
-      zero_bytes -= page_zero_bytes;
-      upage += PGSIZE;
-    }
-  return true;
-}
-
-bool load_segment_lazy(struct supp_entry *supp_entry, uint8_t *upage,
-                       page_type type) {
-  uint32_t offset = (uint32_t) upage - supp_entry->initial_page;
-
-  uint32_t read_bytes = offset > supp_entry->read_bytes ? 0 : (supp_entry->read_bytes - offset);
-  read_bytes = read_bytes > PGSIZE ? PGSIZE : read_bytes;
-  uint32_t zero_bytes = PGSIZE - read_bytes;
-
-//  printf("Lazy loading entry at %p\n", upage);
-
-  ASSERT(read_bytes + zero_bytes == PGSIZE);
-
-  bool success = load_segment(offset, upage, read_bytes, zero_bytes, type, supp_entry);
-  return success;
-}
-
-bool create_fake_entries(uint8_t *upage, uint32_t read_bytes, uint32_t zero_bytes, struct supp_entry* supp_entry) {
-  uint32_t cnt = 0;
-  uint32_t last_addr = 0;
-  while (read_bytes > 0 || zero_bytes > 0)
   {
+    /* Calculate how to fill this page.
+       We will read PAGE_READ_BYTES bytes from FILE
+       and zero the final PAGE_ZERO_BYTES bytes. */
     size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
     size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-    pagedir_set_page(thread_current()->pagedir, upage, supp_entry, supp_entry->writeable, FAKE);
+    /* Get a page of memory. */
+    uint8_t *kpage = falloc_get_frame (upage);
+    if (kpage == NULL)
+      return false;
+
+    /* Load this page. */
+    if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
+    {
+      printf("Read failed\n");
+      falloc_free_frame (kpage);
+      return false;
+    }
+    memset (kpage + page_read_bytes, 0, page_zero_bytes);
+
+    /* Add the page to the process's address space. */
+    if (!install_page (upage, kpage, writable))
+    {
+      falloc_free_frame (kpage);
+      return false;
+    }
+
+    /* Advance. */
+    read_bytes -= page_read_bytes;
+    zero_bytes -= page_zero_bytes;
+    upage += PGSIZE;
+  }
+  return true;
+}
+
+bool load_segment_lazy (struct supp_entry *supp) {
+  ASSERT(supp->file != NULL);
+//  printf("Loading entry at %p\n"
+//         "file: %p\n"
+//         "readbytes: %u\n"
+//      , supp->upage, supp->file, supp->read_bytes);
+  bool success = load_segment(supp->file, supp->offset, supp->upage, supp->read_bytes, PGSIZE - supp->read_bytes, supp->writeable);
+  struct frame temp;
+  temp.kaddr = pagedir_get_page(thread_current()->pagedir, supp->upage);
+  struct hash_elem *e = hash_find(&frame_table, &temp.hash_elem);
+  ASSERT(e);
+  struct frame *frame = hash_entry(e, struct frame, hash_elem);
+  frame->supp = supp;
+  return success;
+}
+
+/* Only call when mapping in file */
+bool create_fake_multiple(void *upage_start,
+                          struct file *file,
+                          uint32_t read_bytes,
+                          uint32_t zero_bytes,
+                          off_t offset,
+                          enum page_type ptype,
+                          bool writable,
+                          mmapid_t mapping) {
+
+  uint32_t curr_fpage = 0;
+  while (read_bytes > 0 || zero_bytes > 0) {
+    uint32_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
+    uint32_t page_zero_bytes = PGSIZE - page_read_bytes;
+    create_fake_single((void *) upage_start + curr_fpage, FSYS,
+        file, offset, page_read_bytes, page_zero_bytes, ptype, writable, mapping);
 
     read_bytes -= page_read_bytes;
     zero_bytes -= page_zero_bytes;
-    last_addr = (uint32_t) upage;
-    upage += PGSIZE;
-    cnt++;
+    offset += PGSIZE;
+    curr_fpage += PGSIZE;
   }
 
-  printf("Creating %u fake entries\n", cnt);
-  printf("Last entry is at %p\n", (void *) last_addr);
+  return true;
+}
 
+bool create_fake_single(void *upage,
+                        enum location location,
+                        void *container,
+                        off_t offset,
+                        uint32_t read_bytes,
+                        uint32_t zero_bytes,
+                        enum page_type ptype,
+                        bool writable,
+                        mmapid_t mapping) {
+  struct supp_entry *supp = malloc(sizeof(struct supp_entry));
+  if (!supp) {
+    printf("Warning: unable to allocate kernel memory...\n");
+    return false;
+  }
+
+  supp->upage = upage;
+  supp->location = location;
+  supp->file = container;
+  supp->offset = offset;
+  supp->read_bytes = read_bytes;
+  supp->zero_bytes = zero_bytes;
+  supp->writeable = writable;
+  supp->ptype = ptype;
+  supp->mapping = mapping;
+
+  pagedir_set_page(thread_current()->pagedir, upage, supp, NULL, FAKE);
   return true;
 }
 
@@ -612,8 +628,7 @@ setup_stack (void **esp)
   uint8_t *kpage;
   bool success = false;
 
-  kpage = falloc_get_frame(((uint8_t *) PHYS_BASE) - PGSIZE, PAL_USER, STACK,
-                           NULL, NULL);
+  kpage = falloc_get_frame(((uint8_t *) PHYS_BASE) - PGSIZE);
 
   if (kpage != NULL) 
     {
@@ -639,19 +654,8 @@ bool
 install_page (void *upage, void *kpage, bool writable)
 {
   struct thread *t = thread_current ();
-
-  //printf("installing page \n");
-
   /* Verify that there's not already a page at that virtual
      address, then map our page there. */
-
-  if (pagedir_get_page (t->pagedir, upage) == NULL) {
-    //printf("checking get page\n");
-    bool page = pagedir_set_page (t->pagedir, upage, kpage, writable, USER);
-    //printf("setting page\n");
-    return page;
-  }
-  return false;
-  /*return (pagedir_get_page (t->pagedir, upage) == NULL
-          && pagedir_set_page (t->pagedir, upage, kpage, writable, USER));*/
+  return (pagedir_get_page (t->pagedir, upage) == NULL
+          && pagedir_set_page (t->pagedir, upage, kpage, writable, USER));
 }
