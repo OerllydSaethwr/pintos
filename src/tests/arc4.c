@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <debug.h>
 #include "tests/arc4.h"
 
 /* Swap bytes. */

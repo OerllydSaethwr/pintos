@@ -1,6 +1,7 @@
 #include "userprog/exception.h"
 #include <inttypes.h>
 #include <stdio.h>
+#include "vm/swap.h"
 #include "threads/malloc.h"
 #include "threads/palloc.h"
 #include "userprog/gdt.h"
@@ -171,10 +172,19 @@ page_fault (struct intr_frame *f) {
         goto die;
       }
     } else if (supp_entry != NULL) {
-      load_segment_lazy (supp_entry);
+      switch (supp_entry->location) {
+        case SWAP:
+//          printf("Faulting back from swap at %p\n", up_address);
+          load_from_swap(supp_entry);
+          break;
+        case FSYS:
+          load_segment_lazy(supp_entry);
+          break;
+        default:
+          PANIC("Shouldn't page fault on loaded page.\n");
+      }
     } else if (is_stack_access (fault_addr, esp)) {
-      void *kernel_address = falloc_get_frame (up_address);
-      install_page (up_address, kernel_address, true);
+      allocate_stack_page(up_address);
     } else {
 //      printf("fall through\n");
       goto die;

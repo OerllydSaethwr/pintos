@@ -14,7 +14,6 @@ static bool frame_less_func(const struct hash_elem *,
                             const struct hash_elem *,
                             void *);
 
-
 struct hash frame_table;
 struct lock frame_lock;
 struct list circular;
@@ -69,40 +68,29 @@ static bool frame_less_func(const struct hash_elem *a,
 }
 
 /* Get a frame of memory for the current thread.
- * Only used to manage USER pages. */
-void *falloc_get_frame(void *upage)
+ * Only used to manage USER pages.
+ * It's the caller's responsibility to allocate and use
+ * supp_entry correctly. */
+struct frame *falloc_get_frame(void *upage)
 {
   ASSERT(is_user_vaddr(upage));
   void *kpage = palloc_get_page(PAL_USER);
   lock_acquire(&frame_lock);
 
-  static int frames_allocated = 0;
-
+  retry:
   if (kpage == NULL) {
     /* Evict to make space*/
-    printf("kpage null\n");
-    struct frame *chosen = frame_to_evict();
-    struct thread *thread = chosen->process;
-    struct supp_entry *placement = swap_to_swap(chosen);
-    pagedir_set_page (thread->pagedir, upage, placement,
-                      placement->writeable, FAKE);
+    evict_frame(frame_to_evict());
     kpage = palloc_get_page(PAL_USER);
-    ASSERT(kpage != NULL);
+    goto retry;
   }
 
-  struct frame *new =  malloc(sizeof(struct frame));
-
-  ++frames_allocated;
-
-  if (frames_allocated == RESET_ACCESS_BITS) {
-    frames_allocated = 0;
-  }
+  struct frame *new = malloc(sizeof(struct frame));
 
   if (new == NULL) {
     PANIC("Out of kernel memory.\n");
   }
-//  barrier();
-//  printf("here: %p\n",  &(new->list_elem));
+
   list_push_front(&circular, &(new->list_elem));
   if (list_size(&circular) == 1) {
     oldest_entry = new;
@@ -117,7 +105,7 @@ void *falloc_get_frame(void *upage)
     PANIC("Attempting to insert already existing entry into frame table.\n");
   }
 
-  return kpage;
+  return new;
 }
 
 void falloc_free_frame(void *kpage) {
@@ -153,12 +141,8 @@ void falloc_free_frame(void *kpage) {
 
 }
 
-
 void print_hash_entries(struct hash_elem *e, void *aux UNUSED) {
   struct frame *frame = hash_entry(e, struct frame, hash_elem);
-//  printf("Frame has kaddr %p\n", frame->kaddr);
+  printf("Frame has kaddr %p\n", frame->kaddr);
 }
-
-
-
 

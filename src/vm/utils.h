@@ -11,6 +11,8 @@
 
 bool is_stack_access(const void *ptr, void *esp);
 
+void allocate_stack_page(void *upage);
+
 enum page_type {
   STACK,
   MMAP,

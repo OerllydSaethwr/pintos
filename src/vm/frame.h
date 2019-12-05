@@ -19,7 +19,7 @@ struct frame {
 
 /* Initialize frame table */
 void frame_init(void);
-void *falloc_get_frame(void *upage);
+struct frame *falloc_get_frame(void *upage);
 void falloc_free_frame(void *kpage);
 struct frame *frame_to_evict(void);
 void print_hash_entries(struct hash_elem *e, void *aux);

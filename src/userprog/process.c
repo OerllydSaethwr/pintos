@@ -521,7 +521,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
     size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
     /* Get a page of memory. */
-    uint8_t *kpage = falloc_get_frame (upage);
+    uint8_t *kpage = falloc_get_frame(upage)->kaddr;
     if (kpage == NULL)
       return false;
 
@@ -556,12 +556,22 @@ bool load_segment_lazy (struct supp_entry *supp) {
 //         "readbytes: %u\n"
 //      , supp->upage, supp->file, supp->read_bytes);
   bool success = load_segment(supp->file, supp->offset, supp->upage, supp->read_bytes, PGSIZE - supp->read_bytes, supp->writeable);
+
+  /* Updating status of supp_entry. */
+  supp->location = LOADED;
+
+  /* Assigning supp entry to frame. */
   struct frame temp;
   temp.kaddr = pagedir_get_page(thread_current()->pagedir, supp->upage);
   struct hash_elem *e = hash_find(&frame_table, &temp.hash_elem);
   ASSERT(e);
   struct frame *frame = hash_entry(e, struct frame, hash_elem);
   frame->supp = supp;
+
+  if (supp->upage == (void *) 0x824c000) {
+//    printf("Loaded in page at %p\n", (void *) 0x824c000);
+  }
+
   return success;
 }
 
@@ -588,6 +598,8 @@ bool create_fake_multiple(void *upage_start,
     curr_fpage += PGSIZE;
   }
 
+//  printf("Created fake entries, last page is at %p\n", upage_start + curr_fpage);
+
   return true;
 }
 
@@ -600,6 +612,7 @@ bool create_fake_single(void *upage,
                         enum page_type ptype,
                         bool writable,
                         mmapid_t mapping) {
+
   struct supp_entry *supp = malloc(sizeof(struct supp_entry));
   if (!supp) {
     printf("Warning: unable to allocate kernel memory...\n");
@@ -628,7 +641,21 @@ setup_stack (void **esp)
   uint8_t *kpage;
   bool success = false;
 
-  kpage = falloc_get_frame(((uint8_t *) PHYS_BASE) - PGSIZE);
+  struct frame *frame = falloc_get_frame(((uint8_t *) PHYS_BASE) - PGSIZE);
+  kpage = frame->kaddr;
+
+  struct supp_entry *supp = malloc(sizeof(struct supp_entry));
+
+  if (!supp) {
+    PANIC("Unable to allocate memory in setup stack.\n");
+  }
+
+  supp->location = FSYS;
+  supp->writeable = true;
+  supp->ptype = STACK;
+  supp->read_bytes = PGSIZE;
+  supp->upage = ((uint8_t *) PHYS_BASE) - PGSIZE;
+  frame->supp = supp;
 
   if (kpage != NULL) 
     {

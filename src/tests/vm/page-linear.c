@@ -20,8 +20,6 @@ test_main (void)
   msg ("initialize");
   memset (buf, 0x5a, sizeof buf);
 
-  msg("Got here\n");
-
   /* Check that it's all 0x5a. */
   msg ("read pass");
   for (i = 0; i < SIZE; i++)

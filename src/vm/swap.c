@@ -11,6 +11,7 @@
 #include "threads/thread.h"
 #include <stdio.h>
 #include  "lib/string.h"
+#include "userprog/process.h"
 
 struct swap_table swap_table;
 
@@ -23,22 +24,44 @@ void swap_init() {
   swap_table.block_device = swap_device;
 }
 
-struct supp_entry *evict_frame(struct frame *frame) {
-
+void evict_frame(struct frame *frame) {
   list_remove(&frame->list_elem);
-
   enum page_type type;
+  struct supp_entry *evicted_supp;
+  retry:
+//  printf("Evicting at %p\n", frame->supp->upage);
+  ASSERT(frame->supp);
   type = frame->supp->ptype;
+
   switch (type){
     case STACK:
-      return swap_to_swap(frame);
+      frame = frame_to_evict();
+      printf("Err: attempting to evict stack, retrying...\n");
+      goto retry;
+      evicted_supp = swap_to_swap(frame);
+      break;
     case MMAP:
-      return swap_to_file_or_discard(frame);
+      evicted_supp = swap_to_file_or_discard(frame);
+      break;
     case EXEC_CODE:
-      return swap_to_discard(frame);
+      frame = frame_to_evict();
+      printf("Err: attempting to evict executable, retrying...\n");
+      goto retry;
+      evicted_supp = swap_to_discard(frame);
+      break;
+    case EXEC_DATA:
+//      printf("Evicting frame at %p\n", frame->supp->upage);
+      evicted_supp = swap_to_discard_or_swap(frame);
+      break;
     default:
-      return swap_to_discard_or_swap(frame);
+      PANIC("Shouldn't get here.\n");
   }
+
+  pagedir_clear_page(frame->process->pagedir, frame->supp->upage);
+
+  pagedir_set_page (frame->process->pagedir, frame->supp->upage, evicted_supp,
+                    evicted_supp->writeable, FAKE);
+  falloc_free_frame(frame->kaddr);
 }
 
 struct supp_entry *swap_to_discard_or_swap(struct frame *frame) {
@@ -50,54 +73,63 @@ struct supp_entry *swap_to_file_or_discard(struct frame *frame) {
 }
 
 struct supp_entry *swap_to_discard(struct frame *frame) {
-  uint32_t  *kaddr = frame->kaddr;
-
-  struct supp_entry *supp = malloc(sizeof(struct supp_entry));
-  supp->location = FSYS;
-  supp->file = frame->supp->file;
-  supp->writeable = pagedir_is_writeable(frame->process->pagedir, frame->supp->upage);
-  falloc_free_frame(kaddr);
-  return supp;
+  frame->supp->location = FSYS;
+  return frame->supp;
 }
 
 struct supp_entry *swap_to_swap(struct frame *frame) {
   uint32_t *kaddr = frame->kaddr;
+  struct supp_entry *supp = frame->supp;
   size_t free_sector = find_free_sector();
   if (free_sector == BITMAP_ERROR) {
-    PANIC("Swap is full\n");
-  }
-  for (uint32_t i = 0; i < PGSIZE; i += BLOCK_SECTOR_SIZE) {
-    uint32_t buffer[BLOCK_SECTOR_SIZE];
-    memcpy(buffer, kaddr + i, BLOCK_SECTOR_SIZE);
-    block_write(swap_table.block_device, (block_sector_t) free_sector* 8 + i / BLOCK_SECTOR_SIZE, buffer);
+    PANIC("Swap is full.\n");
   }
 
-  struct supp_entry *supp = malloc(sizeof(struct supp_entry));
+  for (uint32_t i = 0; i < PGSIZE; i += BLOCK_SECTOR_SIZE) {
+    //char buffer[BLOCK_SECTOR_SIZE];
+    block_write(swap_table.block_device, (block_sector_t) free_sector * 8 + (i / BLOCK_SECTOR_SIZE), supp->upage + i);
+  }
+
   supp->location = SWAP;
-  supp->file = (void *) free_sector;
-  supp->writeable = true;
-  supp->read_bytes = PGSIZE;
-  falloc_free_frame(kaddr);
+  supp->file = (struct file *) free_sector;
+
   return supp;
 }
 
 struct supp_entry *swap_to_file(struct frame *frame) {
-  struct file_descriptor *fd = hash_entry(frame->supp->mapping,struct file_descriptor, thread_hash_elem);
-  uint32_t ofs = (uint32_t) frame->supp->upage - (uint32_t) fd->upage;
-  uint32_t num_of_bytes = file_length(frame->supp->file) - ofs;
-  file_seek(frame->supp->file, ofs);
-  file_write(frame->supp->file, frame->supp->upage, num_of_bytes);
+  struct supp_entry *supp = frame->supp;
+  struct file_descriptor *fd = hash_entry(supp->mapping, struct file_descriptor, thread_hash_elem);
+  file_seek(fd->actual_file, supp->offset);
+  file_write(fd->actual_file, supp->upage, supp->read_bytes);
 
-  struct supp_entry *supp = malloc(sizeof(struct supp_entry));
   supp->location = FSYS;
-  supp->file = frame->supp->upage;
-  supp->writeable = true;
-  falloc_free_frame(frame->kaddr);
   return supp;
 }
 
 static inline size_t find_free_sector(void){
   return bitmap_scan_and_flip(swap_table.bitmap, 0, 1, 0);
+}
+
+bool load_from_swap(struct supp_entry *supp) {
+  ASSERT(supp->location == SWAP);
+
+  struct frame *frame = falloc_get_frame(supp->upage);
+
+  size_t block_index = (size_t) supp->file;
+
+  //block_read(swap_table.block_device, (block_sector_t) block_index * 8 + 1, frame->kaddr);
+
+  for (uint32_t i = 0; i < PGSIZE; i += BLOCK_SECTOR_SIZE) {
+    block_read(swap_table.block_device, (block_sector_t) block_index * 8 + i / BLOCK_SECTOR_SIZE, frame->kaddr + i);
+  }
+
+  bitmap_scan_and_flip(swap_table.bitmap, block_index, 1, 1);
+
+  install_page(supp->upage, frame->kaddr, supp->writeable);
+  supp->location = LOADED;
+  frame->supp = supp;
+
+  return true;
 }
 
 
