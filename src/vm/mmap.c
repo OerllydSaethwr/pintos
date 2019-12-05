@@ -56,9 +56,7 @@ void unmap_file_with_remove_hash(mmapid_t mapid) {
   hash_delete(&thread_current()->file_hash_descriptors, mapid);
 }
 
-
-/* To be used */
-void unmap_file(mmapid_t map_id) {
+void mmap_unmap(mmapid_t map_id) {
   off_t curr_offset = 0;
 
   struct file_descriptor *fd = hash_entry(map_id, struct file_descriptor, thread_hash_elem);
