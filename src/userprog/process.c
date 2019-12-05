@@ -543,7 +543,7 @@ load_segment(off_t ofs, uint8_t *upage, uint32_t read_bytes,
 
       /* Get a page of memory. */
       //TODO: check 
-      uint8_t *kpage = falloc_get_frame(upage, PAL_USER, type, file, supp_entry->map_entry);
+      uint8_t *kpage = falloc_get_frame(upage, PAL_USER, type, file);
       if (kpage == NULL)
         return false;
 
@@ -598,7 +598,7 @@ bool load_segment_lazy(struct supp_entry *supp_entry, uint8_t *upage,
 
   ASSERT(read_bytes + zero_bytes == PGSIZE);
 
-  bool success = load_segment(offset, upage, read_bytes, zero_bytes, type, supp_entry, addr_entry);
+  bool success = load_segment(offset, upage, read_bytes, zero_bytes, type, NULL, addr_entry);
   return success;
 }
 
@@ -641,7 +641,7 @@ setup_stack (void **esp)
   bool success = false;
 
   kpage = falloc_get_frame(((uint8_t *) PHYS_BASE) - PGSIZE, PAL_USER, STACK,
-                           NULL, NULL);
+                           NULL);
 
   if (kpage != NULL) 
     {

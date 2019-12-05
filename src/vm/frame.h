@@ -21,7 +21,7 @@ struct frame {
 /* Initialize frame table */
 void frame_init(void);
 void *falloc_get_frame(void *upage, PALLOC_FLAGS flag, page_type type,
-                       struct file *file, struct mmap_entry *m_entry);
+                       struct file *file);
 void falloc_free_frame(void *kpage);
 void print_hash_entries(struct hash_elem *e, void *aux);
 #endif

@@ -47,4 +47,6 @@ struct addr_info {
 };
 
 
+struct addr_info* get_addr_info_entry(uint32_t);
+
 #endif

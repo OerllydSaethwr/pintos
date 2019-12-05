@@ -158,22 +158,39 @@ page_fault (struct intr_frame *f) {
   void *up_address = pg_round_down (fault_addr);
   void *esp = ((void *) f->eip > PHYS_BASE ? *thread_current ()->esp : f->esp);
 
-  if (is_user_vaddr (fault_addr)) {
-    void *fault_upage = pagedir_get_page (thread_current ()->pagedir,
-                                          up_address);
-    struct supp_entry *supp_entry = pagedir_get_fake (
-      thread_current ()->pagedir, fault_addr);
+  if (is_user_vaddr(fault_addr)) {
+#ifdef USE_SUPP_TABLE
+    void *fault_upage = pagedir_get_page(thread_current()->pagedir,
+                                           up_address);
+      struct addr_info *addr_info = get_addr_info_entry((uint32_t) up_address);
+#endif
+#ifndef USE_SUPP_TABLE
+    void *fault_upage = pagedir_get_page(thread_current()->pagedir,
+                                           up_address);
+      struct supp_entry *supp_entry = pagedir_get_fake(
+          thread_current()->pagedir, fault_addr);
+#endif
     if (fault_upage != NULL) {
       if (!pagedir_is_writeable (thread_current ()->pagedir, up_address)) {
         goto die;
       }
-    } else if (supp_entry != NULL) {
+    }
+#ifndef USE_SUPP_TABLE
+    else if (supp_entry != NULL) {
       load_segment_lazy (supp_entry, pg_round_down (fault_addr),
                          supp_entry->type, NULL);
-    } else if (is_stack_access (fault_addr, esp)) {
-      void *kernel_address = falloc_get_frame (up_address, PAL_USER, STACK,
-                                               NULL,
-                                               NULL);
+    }
+#endif
+#ifdef USE_SUPP_TABLE
+    else if (addr_info != NULL) {
+      load_segment_lazy (NULL, up_address,
+                         addr_info->type, addr_info);
+    }
+#endif
+
+    else if (is_stack_access (fault_addr, esp)) {
+      void *kernel_address = falloc_get_frame(up_address, PAL_USER, STACK,
+                                              NULL);
       install_page (up_address, kernel_address, true);
     } else {
       goto die;

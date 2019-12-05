@@ -4,7 +4,9 @@
 
 #include "utils.h"
 #include "userprog/pagedir.h"
+#include "threads/thread.h"
 #include <stdio.h>
+#include "lib/kernel/hash.h"
 
 static unsigned supp_hash(const struct hash_elem *e, void *aux UNUSED);
 static bool supp_less_func(const struct hash_elem *a,
@@ -29,6 +31,17 @@ static bool supp_less_func(const struct hash_elem *a,
 
   return me_a->uaddr < me_b->uaddr;
 }
+
+struct addr_info* get_addr_info_entry(uint32_t uaddr){
+  struct addr_info temp;
+  temp.uaddr = uaddr;
+  struct hash_elem *elem = hash_find(&thread_current()->supp_table, &temp.hash_elem );
+  if(elem){
+    return hash_entry(elem, struct addr_info, hash_elem);
+  }
+  return NULL;
+}
+
 
 
   bool is_stack_access(const void *ptr, void *esp)
