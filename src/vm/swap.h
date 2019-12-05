@@ -12,7 +12,7 @@ struct swap_table {
   struct block *block_device;
 };
 
-void swap_init();
+void swap_init(void);
 struct supp_entry *evict_frame(struct frame *frame);
 struct supp_entry *swap_to_swap(struct frame *);
 struct supp_entry *swap_to_file(struct frame *);

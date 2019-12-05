@@ -168,14 +168,20 @@ page_fault (struct intr_frame *f) {
         goto die;
       }
     } else if (supp_entry != NULL) {
+      if (up_address == (void *) 0x824b000) {
+        printf("Reading last entry\n");
+      }
+      printf("Faulting in page %p\n", up_address);
       load_segment_lazy (supp_entry, pg_round_down (fault_addr),
                          supp_entry->type);
     } else if (is_stack_access (fault_addr, esp)) {
+      printf("Evicting to make space for stack\n");
       void *kernel_address = falloc_get_frame (up_address, PAL_USER, STACK,
                                                NULL,
                                                NULL);
       install_page (up_address, kernel_address, true);
     } else {
+//      printf("Gettgin here\n\n\n");
       goto die;
     }
   } else {

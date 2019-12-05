@@ -23,5 +23,6 @@ void frame_init(void);
 void *falloc_get_frame(void *upage, PALLOC_FLAGS flag, page_type type,
                        struct file *file, struct mmap_entry *m_entry);
 void falloc_free_frame(void *kpage);
+struct frame *frame_to_evict(void);
 void print_hash_entries(struct hash_elem *e, void *aux);
 #endif

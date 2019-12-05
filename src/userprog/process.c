@@ -581,7 +581,9 @@ bool load_segment_lazy(struct supp_entry *supp_entry, uint8_t *upage,
   return success;
 }
 
-bool create_fake_entries(uint8_t *upage,uint32_t read_bytes, uint32_t zero_bytes, struct supp_entry* supp_entry) {
+bool create_fake_entries(uint8_t *upage, uint32_t read_bytes, uint32_t zero_bytes, struct supp_entry* supp_entry) {
+  uint32_t cnt = 0;
+  uint32_t last_addr = 0;
   while (read_bytes > 0 || zero_bytes > 0)
   {
     size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
@@ -591,8 +593,13 @@ bool create_fake_entries(uint8_t *upage,uint32_t read_bytes, uint32_t zero_bytes
 
     read_bytes -= page_read_bytes;
     zero_bytes -= page_zero_bytes;
+    last_addr = (uint32_t) upage;
     upage += PGSIZE;
+    cnt++;
   }
+
+  printf("Creating %u fake entries\n", cnt);
+  printf("Last entry is at %p\n", (void *) last_addr);
 
   return true;
 }

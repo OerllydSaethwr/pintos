@@ -23,32 +23,38 @@ void swap_init() {
   swap_table.block_device = swap_device;
 }
 
-
-
 struct supp_entry *evict_frame(struct frame *frame) {
-  page_type type = frame->page_type;
+  page_type type;
+  retry:
+  printf("Evicting at %p\n", frame->uaddr);
+  type = frame->page_type;
   switch (type){
     case STACK:
+      frame = frame_to_evict();
+      printf("Err: attempting to evict stack, retrying...\n");
+      goto retry;
       return swap_to_swap(frame);
     case MMAP:
       return swap_to_file_or_discard(frame);
     case EXEC_CODE:
+      frame = frame_to_evict();
+      printf("Err: attempting to evict executable, retrying...\n");
       return swap_to_discard(frame);
     case EXEC_DATA:
       return swap_to_discard_or_swap(frame);
   }
+  PANIC("Shouldnt get here\n");
 }
 
-
 struct supp_entry *swap_to_discard_or_swap(struct frame *frame) {
-  return (pagedir_is_dirty(thread_current()->pagedir, frame->uaddr) ? swap_to_swap(frame) : swap_to_discard(frame));
+  return (pagedir_is_dirty(frame->process->pagedir, frame->uaddr) ? swap_to_swap(frame) : swap_to_discard(frame));
 }
 
 struct supp_entry *swap_to_file_or_discard(struct frame *frame) {
-  return (pagedir_is_dirty(thread_current()->pagedir, frame->uaddr) ? swap_to_file(frame) : swap_to_discard(frame));
+  return (pagedir_is_dirty(frame->process->pagedir, frame->uaddr) ? swap_to_file(frame) : swap_to_discard(frame));
 }
 
-struct supp_entry *swap_to_discard(struct frame *frame){
+struct supp_entry *swap_to_discard(struct frame *frame) {
   uint32_t  *kaddr = frame->kaddr;
 
   struct supp_entry *supp = malloc(sizeof(struct supp_entry));
@@ -60,12 +66,15 @@ struct supp_entry *swap_to_discard(struct frame *frame){
 }
 
 struct supp_entry *swap_to_swap(struct frame *frame) {
-  uint32_t  *kaddr = frame->kaddr;
+  uint32_t *kaddr = frame->kaddr;
   size_t free_sector = find_free_sector();
-  for(uint32_t i = 0; i < PGSIZE; i += BLOCK_SECTOR_SIZE){
-    uint32_t  buffer[BLOCK_SECTOR_SIZE];
+  if (free_sector == BITMAP_ERROR) {
+    PANIC("Swap is full\n");
+  }
+  for (uint32_t i = 0; i < PGSIZE; i += BLOCK_SECTOR_SIZE) {
+    uint32_t buffer[BLOCK_SECTOR_SIZE];
     memcpy(buffer, kaddr + i, BLOCK_SECTOR_SIZE);
-    block_write(swap_table.block_device, (block_sector_t) free_sector* 8 + i / BLOCK_SECTOR_SIZE, buffer );
+    block_write(swap_table.block_device, (block_sector_t) free_sector* 8 + i / BLOCK_SECTOR_SIZE, buffer);
   }
 
   struct supp_entry *supp = malloc(sizeof(struct supp_entry));
@@ -78,10 +87,10 @@ struct supp_entry *swap_to_swap(struct frame *frame) {
 }
 
 struct supp_entry *swap_to_file(struct frame *frame) {
-    uint32_t ofs = (uint32_t) frame->uaddr - (uint32_t) frame->m_entry->location_of_file;
-    uint32_t num_of_bytes = file_length(frame->m_entry->file) - ofs;
-    file_seek(frame->m_entry->file, ofs);
-    file_write(frame->m_entry->file, frame->uaddr, num_of_bytes);
+  uint32_t ofs = (uint32_t) frame->uaddr - (uint32_t) frame->m_entry->location_of_file;
+  uint32_t num_of_bytes = file_length(frame->m_entry->file) - ofs;
+  file_seek(frame->m_entry->file, ofs);
+  file_write(frame->m_entry->file, frame->uaddr, num_of_bytes);
 
   struct supp_entry *supp = malloc(sizeof(struct supp_entry));
   supp->location = FSYS;
