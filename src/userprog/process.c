@@ -201,7 +201,7 @@ static void delete_remaining_hash (struct hash_elem *e, void *aux UNUSED) {
   struct file_descriptor *fd = hash_entry (e, struct file_descriptor,
                                            thread_hash_elem);
   if (fd->upage != NULL && fd->upage != DEBUG_FREE) {
-    mmap_unmap(&fd->thread_hash_elem);
+    unmap_file(&fd->thread_hash_elem);
   } else {
     file_close (fd->actual_file);
     free (fd);

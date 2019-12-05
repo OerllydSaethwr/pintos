@@ -51,12 +51,14 @@ mmapid_t mmap_segment(struct file *file, off_t segment_offset, uint32_t read_byt
   return &fd->thread_hash_elem;
 }
 
-void mmap_unmap_hash(mmapid_t mapid) {
-  mmap_unmap(mapid);
+void unmap_file_with_remove_hash(mmapid_t mapid) {
+  unmap_file(mapid);
   hash_delete(&thread_current()->file_hash_descriptors, mapid);
 }
 
-void mmap_unmap(mmapid_t map_id) {
+
+/* To be used */
+void unmap_file(mmapid_t map_id) {
   off_t curr_offset = 0;
 
   struct file_descriptor *fd = hash_entry(map_id, struct file_descriptor, thread_hash_elem);

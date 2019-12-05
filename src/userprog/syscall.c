@@ -307,7 +307,7 @@ static void mmap (void **argv) {
 
 static void munmap (void **argv) {
   mmapid_t mapping = *(mmapid_t *) argv[0];
-  mmap_unmap_hash(mapping);
+  unmap_file_with_remove_hash(mapping);
 }
 
 static void check_string_pointer (const char *string) {
