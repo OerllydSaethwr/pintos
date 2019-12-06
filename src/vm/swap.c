@@ -36,7 +36,7 @@ void evict_frame(struct frame *frame) {
   switch (type){
     case STACK:
       frame = frame_to_evict();
-      printf("Err: attempting to evict stack, retrying...\n");
+//      printf("Err: attempting to evict stack, retrying...\n");
       goto retry;
       evicted_supp = swap_to_swap(frame);
       break;
@@ -45,7 +45,7 @@ void evict_frame(struct frame *frame) {
       break;
     case EXEC_CODE:
       frame = frame_to_evict();
-      printf("Err: attempting to evict executable, retrying...\n");
+//      printf("Err: attempting to evict executable, retrying...\n");
       goto retry;
       evicted_supp = swap_to_discard(frame);
       break;
