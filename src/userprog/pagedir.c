@@ -2,15 +2,17 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
+#include "lib/kernel/bitmap.h"
 #include "vm/frame.h"
 #include "threads/init.h"
 #include "threads/pte.h"
 #include "threads/palloc.h"
 #include "threads/malloc.h"
+#include "vm/swap.h"
 
 static uint32_t *active_pd (void);
 static void invalidate_pagedir (uint32_t *);
-
+extern struct swap_table swap_table;
 /* Creates a new page directory that has mappings for kernel
    virtual addresses, but none for user virtual addresses.
    Returns the new page directory, or a null pointer if memory
@@ -42,8 +44,15 @@ pagedir_destroy (uint32_t *pd)
         uint32_t *pte;
         
         for (pte = pt; pte < pt + PGSIZE / sizeof *pte; pte++)
-          if (*pte & PTE_P)
+          if (*pte & PTE_P) {
             falloc_free_frame (pte_get_page (*pte));
+          } else if ((void *) *pte != NULL) {
+            struct supp_entry *supp = pte_retrieve_addr(*pte);
+            if (supp->location == SWAP) {
+              bitmap_scan_and_flip(swap_table.bitmap, supp->location, 1, 1);
+            }
+            free(supp);
+          }
         palloc_free_page (pt);
       }
   palloc_free_page (pd);

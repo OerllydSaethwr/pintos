@@ -61,7 +61,6 @@ void evict_frame() {
                     frame->supp->writeable, FAKE);
 
   falloc_free_frame(frame->kaddr);
-  sema_up(&eviction_sema);
   sema_up(&evicted_supp->eviction_sema);
 }
 
