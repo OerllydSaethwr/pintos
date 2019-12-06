@@ -1,6 +1,7 @@
 #include <kernel/hash.h>
 #include <kernel/list.h>
 #include <stdio.h>
+#include "userprog/process.h"
 #include "threads/palloc.h"
 #include "threads/vaddr.h"
 #include "threads/malloc.h"
@@ -8,7 +9,7 @@
 #include "frame.h"
 #include "swap.h"
 #include "debug.h"
-#define MAX_EVICT_LOOK 100
+
 static unsigned frame_hash(const struct hash_elem *, void *);
 static bool frame_less_func(const struct hash_elem *,
                             const struct hash_elem *,
@@ -17,28 +18,28 @@ static bool frame_less_func(const struct hash_elem *,
 struct hash frame_table;
 struct lock frame_table_lock;
 struct lock circular_list_lock;
+struct semaphore eviction_sema;
 
 struct list circular;
 void *oldest_entry;
 struct frame *frame_to_evict(void) {
+  return frame_to_evict_safe();
   lock_acquire(&circular_list_lock);
   struct frame *frame = oldest_entry;
   struct list_elem *curr = &frame->list_elem;
-  int i = 0;
-  while (i < MAX_EVICT_LOOK) {
-    i++;
-    barrier ();
-    if (!pagedir_is_accessed(frame->process->pagedir, frame->supp->upage) ||
-    MAX_EVICT_LOOK == i) {
+
+  while (true) {
+    barrier();
+
+    if (!pagedir_is_accessed(frame->process->pagedir, frame->supp->upage)) {
       if (curr->next == &circular.tail) {
         oldest_entry = list_entry(list_begin(&circular),
-                                  struct frame, list_elem);
+                                                struct frame, list_elem);
       } else {
         oldest_entry = list_entry(list_next(curr), struct frame,
-                                  list_elem);
+                                                list_elem);
       }
       list_remove(&frame->list_elem);
-
       lock_release (&circular_list_lock);
       return frame;
 
@@ -61,6 +62,7 @@ void frame_init(void) {
   lock_init(&frame_table_lock);
   lock_init(&circular_list_lock);
   list_init(&circular);
+  sema_init(&eviction_sema, 1);
 }
 
 static unsigned frame_hash(const struct hash_elem *e, void *aux UNUSED) {
@@ -88,6 +90,7 @@ struct frame *falloc_get_frame(void *upage)
   retry:
   if (kpage == NULL) {
     /* Evict to make space*/
+    sema_down(&eviction_sema);
     evict_frame();
     kpage = palloc_get_page(PAL_USER);
     goto retry;
@@ -95,6 +98,7 @@ struct frame *falloc_get_frame(void *upage)
 
   lock_acquire(&frame_table_lock);
   struct frame *new = malloc(sizeof(struct frame));
+
   if (new == NULL) {
     PANIC("Out of kernel memory.\n");
   }
@@ -154,5 +158,21 @@ void falloc_free_frame(void *kpage) {
 void print_hash_entries(struct hash_elem *e, void *aux UNUSED) {
   struct frame *frame = hash_entry(e, struct frame, hash_elem);
   printf("Frame has kaddr %p\n", frame->kaddr);
+}
+
+void allocate_stack_page(void *upage) {
+  struct supp_entry *supp = malloc(sizeof(struct supp_entry));
+  if (!supp)
+    PANIC("Failed to allocate memory for supp entry for stack frame.\n");
+  supp->location = LOADED;
+  supp->writeable = true;
+  supp->ptype = STACK;
+  supp->upage = upage;
+  supp->read_bytes = PGSIZE;
+  sema_init(&supp->eviction_sema, 0);
+
+  struct frame *frame = falloc_get_frame(upage);
+  frame->supp = supp;
+  install_page (upage, frame->kaddr, supp->writeable);
 }
 

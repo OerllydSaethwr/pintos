@@ -172,6 +172,7 @@ page_fault (struct intr_frame *f) {
         goto die;
       }
     } else if (supp_entry != NULL) {
+      retry:
       switch (supp_entry->location) {
         case SWAP:
           printf("page faulting at swap: %p\n", fault_addr);
@@ -181,7 +182,8 @@ page_fault (struct intr_frame *f) {
           load_segment_lazy(supp_entry);
           break;
         default:
-          PANIC("Shouldn't page fault on loaded page.\n");
+          sema_down(&supp_entry->eviction_sema);
+          goto retry;
       }
       pagedir_set_accessed(thread_current()->pagedir, up_address, false);
     } else if (is_stack_access (fault_addr, esp)) {

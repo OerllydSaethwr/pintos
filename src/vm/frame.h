@@ -23,4 +23,5 @@ void falloc_free_frame(void *kpage);
 struct frame *frame_to_evict(void);
 void print_hash_entries(struct hash_elem *e, void *aux);
 struct frame *frame_to_evict_safe(void);
+void allocate_stack_page(void *upage);
 #endif

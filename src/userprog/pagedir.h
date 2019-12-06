@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "threads/pte.h"
+#include "threads/synch.h"
 #include "filesys/off_t.h"
 #include "syscall.h"
 #include "vm/mmap.h"
@@ -32,6 +33,13 @@ enum location {
   LOADED
 };
 
+enum page_type {
+  STACK,
+  MMAP,
+  EXEC_CODE,
+  EXEC_DATA
+};
+
 struct supp_entry {
   void *upage;
   struct file *file;
@@ -43,6 +51,7 @@ struct supp_entry {
   enum page_type ptype;
   mmapid_t mapping;
   bool dirty;
+  struct semaphore eviction_sema;
 };
 
 

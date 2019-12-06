@@ -10,6 +10,7 @@
 #include "threads/malloc.h"
 #include "threads/thread.h"
 #include <stdio.h>
+#include "threads/interrupt.h"
 #include  "lib/string.h"
 #include "userprog/process.h"
 
@@ -17,6 +18,8 @@ struct swap_table swap_table;
 
 static inline size_t find_free_sector(void);
 struct lock swap_table_lock;
+
+extern struct semaphore eviction_sema;
 
 void swap_init() {
   lock_init(&swap_table_lock);
@@ -33,6 +36,7 @@ void evict_frame() {
   if (pagedir_is_dirty(frame->process->pagedir, frame->supp->upage)) {
     frame->supp->dirty = true;
   }
+
   ASSERT(frame->supp);
   type = frame->supp->ptype;
   switch (type){
@@ -53,10 +57,12 @@ void evict_frame() {
   }
 
   pagedir_clear_page(frame->process->pagedir, frame->supp->upage);
+  pagedir_set_page (frame->process->pagedir, frame->supp->upage, frame->supp,
+                    frame->supp->writeable, FAKE);
 
-  pagedir_set_page (frame->process->pagedir, frame->supp->upage, evicted_supp,
-                    evicted_supp->writeable, FAKE);
   falloc_free_frame(frame->kaddr);
+  sema_up(&eviction_sema);
+  sema_up(&evicted_supp->eviction_sema);
 }
 
 struct supp_entry *swap_to_discard_or_swap(struct frame *frame) {
@@ -75,14 +81,15 @@ struct supp_entry *swap_to_discard(struct frame *frame) {
 struct supp_entry *swap_to_swap(struct frame *frame) {
   uint32_t *kaddr = frame->kaddr;
   struct supp_entry *supp = frame->supp;
+  lock_acquire(&swap_table_lock);
   size_t free_sector = find_free_sector();
+  lock_release(&swap_table_lock);
   if (free_sector == BITMAP_ERROR) {
     PANIC("Swap is full.\n");
   }
 
   for (uint32_t i = 0; i < PGSIZE; i += BLOCK_SECTOR_SIZE) {
-    //char buffer[BLOCK_SECTOR_SIZE];
-    block_write(swap_table.block_device, (block_sector_t) free_sector * 8 + (i / BLOCK_SECTOR_SIZE), supp->upage + i);
+    block_write(swap_table.block_device, (block_sector_t) free_sector * 8 + (i / BLOCK_SECTOR_SIZE), frame->kaddr + i);
   }
 
   supp->location = SWAP;
@@ -96,18 +103,14 @@ struct supp_entry *swap_to_file(struct frame *frame) {
   struct file_descriptor *fd = hash_entry(supp->mapping, struct file_descriptor, thread_hash_elem);
   lock_the_filesys();
   file_seek(fd->actual_file, supp->offset);
-  file_write(fd->actual_file, supp->upage, supp->read_bytes);
+  file_write(fd->actual_file, frame->kaddr, supp->read_bytes);
   unlock_the_filesys();
   supp->location = FSYS;
-
   return supp;
 }
 
 static inline size_t find_free_sector(void){
-  lock_acquire(&swap_table_lock);
-  size_t  bits = bitmap_scan_and_flip(swap_table.bitmap, 0, 1, 0);
-  lock_release(&swap_table_lock);
-  return bits;
+  return bitmap_scan_and_flip(swap_table.bitmap, 0, 1, 0);
 }
 
 bool load_from_swap(struct supp_entry *supp) {
@@ -121,7 +124,9 @@ bool load_from_swap(struct supp_entry *supp) {
     block_read(swap_table.block_device, (block_sector_t) block_index * 8 + i / BLOCK_SECTOR_SIZE, frame->kaddr + i);
   }
 
+  lock_acquire(&swap_table_lock);
   bitmap_scan_and_flip(swap_table.bitmap, block_index, 1, 1);
+  lock_release(&swap_table_lock);
   install_page(supp->upage, frame->kaddr, supp->writeable);
   supp->location = LOADED;
   frame->supp = supp;
