@@ -25,37 +25,39 @@ void swap_init() {
   swap_table.block_device = swap_device;
 }
 
-void evict_frame(struct frame *frame) {
+void evict_frame() {
   enum page_type type;
   struct supp_entry *evicted_supp;
+  struct frame *frame;
   retry:
-//  printf("Evicting at %p\n", frame->supp->upage);
+  frame = frame_to_evict();
+  if (pagedir_is_dirty(frame->process->pagedir, frame->supp->upage)) {
+    frame->supp->dirty = true;
+  }
   ASSERT(frame->supp);
   type = frame->supp->ptype;
-
   switch (type){
     case STACK:
-      frame = frame_to_evict();
-//      printf("Err: attempting to evict stack, retrying...\n");
       goto retry;
       evicted_supp = swap_to_swap(frame);
       break;
     case MMAP:
+      goto retry;
       evicted_supp = swap_to_file_or_discard(frame);
       break;
     case EXEC_CODE:
-      frame = frame_to_evict();
-//      printf("Err: attempting to evict executable, retrying...\n");
       goto retry;
       evicted_supp = swap_to_discard(frame);
       break;
     case EXEC_DATA:
-//      printf("Evicting frame at %p\n", frame->supp->upage);
       evicted_supp = swap_to_discard_or_swap(frame);
       break;
     default:
       PANIC("Shouldn't get here.\n");
   }
+
+  //frame_dump(frame);
+  //supp_dump(frame->supp);
 
   pagedir_clear_page(frame->process->pagedir, frame->supp->upage);
 
@@ -65,14 +67,15 @@ void evict_frame(struct frame *frame) {
 }
 
 struct supp_entry *swap_to_discard_or_swap(struct frame *frame) {
-  return (pagedir_is_dirty(frame->process->pagedir, frame->supp->upage) ? swap_to_swap(frame) : swap_to_discard(frame));
+  return (frame->supp->dirty ? swap_to_swap(frame) : swap_to_discard(frame));
 }
 
 struct supp_entry *swap_to_file_or_discard(struct frame *frame) {
-  return (pagedir_is_dirty(frame->process->pagedir, frame->supp->upage) ? swap_to_file(frame) : swap_to_discard(frame));
+  return (frame->supp->dirty ? swap_to_file(frame) : swap_to_discard(frame));
 }
 
 struct supp_entry *swap_to_discard(struct frame *frame) {
+  printf("%p\n", frame->supp->file);
   frame->supp->location = FSYS;
   return frame->supp;
 }
@@ -120,13 +123,13 @@ bool load_from_swap(struct supp_entry *supp) {
   size_t block_index = (size_t) supp->file;
 
   //block_read(swap_table.block_device, (block_sector_t) block_index * 8 + 1, frame->kaddr);
-lock_acquire(&swap_table_lock);
+  lock_acquire(&swap_table_lock);
   for (uint32_t i = 0; i < PGSIZE; i += BLOCK_SECTOR_SIZE) {
     block_read(swap_table.block_device, (block_sector_t) block_index * 8 + i / BLOCK_SECTOR_SIZE, frame->kaddr + i);
   }
 
   bitmap_scan_and_flip(swap_table.bitmap, block_index, 1, 1);
-lock_release(&swap_table_lock);
+  lock_release(&swap_table_lock);
   install_page(supp->upage, frame->kaddr, supp->writeable);
   supp->location = LOADED;
   frame->supp = supp;

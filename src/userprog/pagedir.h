@@ -42,6 +42,7 @@ struct supp_entry {
   enum location location;
   enum page_type ptype;
   mmapid_t mapping;
+  bool dirty;
 };
 
 

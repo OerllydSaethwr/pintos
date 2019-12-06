@@ -4,7 +4,6 @@
 
 #include <hash.h>
 #include "threads/palloc.h"
-#include "utils.h"
 
 /* Frame table entry */
 
@@ -23,4 +22,5 @@ struct frame *falloc_get_frame(void *upage);
 void falloc_free_frame(void *kpage);
 struct frame *frame_to_evict(void);
 void print_hash_entries(struct hash_elem *e, void *aux);
+struct frame *frame_to_evict_safe(void);
 #endif

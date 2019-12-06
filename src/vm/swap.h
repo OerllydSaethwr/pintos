@@ -13,7 +13,7 @@ struct swap_table {
 };
 
 void swap_init(void);
-void evict_frame(struct frame *frame);
+void evict_frame(void);
 struct supp_entry *swap_to_swap(struct frame *);
 struct supp_entry *swap_to_file(struct frame *);
 struct supp_entry *swap_to_discard_or_swap(struct frame *);

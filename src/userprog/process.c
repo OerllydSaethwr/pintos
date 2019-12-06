@@ -551,10 +551,6 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 
 bool load_segment_lazy (struct supp_entry *supp) {
   ASSERT(supp->file != NULL);
-//  printf("Loading entry at %p\n"
-//         "file: %p\n"
-//         "readbytes: %u\n"
-//      , supp->upage, supp->file, supp->read_bytes);
   bool success = load_segment(supp->file, supp->offset, supp->upage, supp->read_bytes, PGSIZE - supp->read_bytes, supp->writeable);
 
   /* Updating status of supp_entry. */
@@ -567,10 +563,6 @@ bool load_segment_lazy (struct supp_entry *supp) {
   ASSERT(e);
   struct frame *frame = hash_entry(e, struct frame, hash_elem);
   frame->supp = supp;
-
-  if (supp->upage == (void *) 0x824c000) {
-//    printf("Loaded in page at %p\n", (void *) 0x824c000);
-  }
 
   return success;
 }

@@ -38,7 +38,6 @@ arc4_crypt (struct arc4 *arc4, void *buf_, size_t size)
   uint8_t *buf = buf_;
   uint8_t *s;
   uint8_t i, j;
-
   s = arc4->s;
   i = arc4->i;
   j = arc4->j;

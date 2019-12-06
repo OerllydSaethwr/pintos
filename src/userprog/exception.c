@@ -167,14 +167,11 @@ page_fault (struct intr_frame *f) {
       thread_current ()->pagedir, fault_addr);
     if (fault_upage != NULL) {
       if (!pagedir_is_writeable (thread_current ()->pagedir, up_address)) {
-//        printf("unwritable\n");
-
         goto die;
       }
     } else if (supp_entry != NULL) {
       switch (supp_entry->location) {
         case SWAP:
-//          printf("Faulting back from swap at %p\n", up_address);
           load_from_swap(supp_entry);
           break;
         case FSYS:

@@ -1,11 +1,12 @@
 //
 // Created by Raghav Khanna on 1/12/19.
 //
-
-#include "lib/stdbool.h"
-
+#include "userprog/pagedir.h"
+#include "vm/frame.h"
 #ifndef UTILS
 #define UTILS
+
+#include "lib/stdbool.h"
 #define MAX_STACK_SIZE 10485760  /* 10 MiB hard maximum for stack*/
 
 
@@ -19,4 +20,7 @@ enum page_type {
   EXEC_CODE,
   EXEC_DATA
 };
+
+void supp_dump(struct supp_entry *supp);
+void frame_dump(struct frame *frame);
 #endif
