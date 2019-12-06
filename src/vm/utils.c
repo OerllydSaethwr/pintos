@@ -19,7 +19,7 @@ bool is_stack_access(const void *ptr, void *esp)
 }
 
 void allocate_stack_page(void *upage) {
-  struct supp_entry *supp = malloc(sizeof(supp));
+  struct supp_entry *supp = malloc(sizeof(struct supp_entry));
   if (!supp)
     PANIC("Failed to allocate memory for supp entry for stack frame.\n");
   supp->location = LOADED;

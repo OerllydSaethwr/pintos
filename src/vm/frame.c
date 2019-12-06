@@ -8,7 +8,7 @@
 #include "frame.h"
 #include "swap.h"
 #include "debug.h"
-
+#define MAX_EVICT_LOOK 100
 static unsigned frame_hash(const struct hash_elem *, void *);
 static bool frame_less_func(const struct hash_elem *,
                             const struct hash_elem *,
@@ -24,19 +24,21 @@ struct frame *frame_to_evict(void) {
   lock_acquire(&circular_list_lock);
   struct frame *frame = oldest_entry;
   struct list_elem *curr = &frame->list_elem;
-
-  if (curr->next == &circular.tail) {
-    oldest_entry = list_entry(list_begin(&circular),
-                              struct frame, list_elem);
-  } else {
-    oldest_entry = list_entry(list_next(curr), struct frame,
-                              list_elem);
-  }
-
-  while (true) {
-//    barrier();
-    if (!pagedir_is_accessed(frame->process->pagedir, frame->supp->upage)) {
+  int i = 0;
+  while (i < MAX_EVICT_LOOK) {
+    i++;
+    barrier ();
+    if (!pagedir_is_accessed(frame->process->pagedir, frame->supp->upage) ||
+    MAX_EVICT_LOOK == i) {
+      if (curr->next == &circular.tail) {
+        oldest_entry = list_entry(list_begin(&circular),
+                                  struct frame, list_elem);
+      } else {
+        oldest_entry = list_entry(list_next(curr), struct frame,
+                                  list_elem);
+      }
       list_remove(&frame->list_elem);
+
       lock_release (&circular_list_lock);
       return frame;
 

@@ -166,12 +166,15 @@ page_fault (struct intr_frame *f) {
     struct supp_entry *supp_entry = pagedir_get_fake (
       thread_current ()->pagedir, fault_addr);
     if (fault_upage != NULL) {
+      printf("page faulting at exsisting page: %p\n", fault_addr);
       if (!pagedir_is_writeable (thread_current ()->pagedir, up_address)) {
+        printf("page faulting at not writable die: %p\n", fault_addr);
         goto die;
       }
     } else if (supp_entry != NULL) {
       switch (supp_entry->location) {
         case SWAP:
+          printf("page faulting at swap: %p\n", fault_addr);
           load_from_swap(supp_entry);
           break;
         case FSYS:
@@ -180,13 +183,18 @@ page_fault (struct intr_frame *f) {
         default:
           PANIC("Shouldn't page fault on loaded page.\n");
       }
+      pagedir_set_accessed(thread_current()->pagedir, up_address, false);
     } else if (is_stack_access (fault_addr, esp)) {
       allocate_stack_page(up_address);
     } else {
+      printf("page faulting at goto die: %p\n", fault_addr);
+
       goto die;
     }
   } else {
-    die:
+  printf("page faulting at die: %p\n", fault_addr);
+
+  die:
     printf ("Page fault at %p: %s error %s page in %s context.\n",
             fault_addr,
             not_present ? "not present" : "rights violation",
