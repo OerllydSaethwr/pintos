@@ -23,7 +23,7 @@ struct semaphore eviction_sema;
 struct list circular;
 void *oldest_entry;
 struct frame *frame_to_evict(void) {
-  return frame_to_evict_safe();
+  //return frame_to_evict_safe();
   lock_acquire(&circular_list_lock);
   struct frame *frame = oldest_entry;
   struct list_elem *curr = &frame->list_elem;
@@ -100,7 +100,9 @@ static bool frame_less_func(const struct hash_elem *a,
 struct frame *falloc_get_frame(void *upage)
 {
   ASSERT(is_user_vaddr(upage));
+  sema_down(&eviction_sema);
   void *kpage = palloc_get_page(PAL_USER);
+  sema_up(&eviction_sema);
 
   retry:
   if (kpage == NULL) {
@@ -108,6 +110,7 @@ struct frame *falloc_get_frame(void *upage)
     sema_down(&eviction_sema);
     evict_frame();
     kpage = palloc_get_page(PAL_USER);
+    sema_up(&eviction_sema);
     goto retry;
   }
 
