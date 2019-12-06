@@ -511,6 +511,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
   ASSERT (pg_ofs (upage) == 0);
   //ASSERT (ofs % PGSIZE == 0);
+//  lock_the_filesys ();
   file_seek (file, ofs);
   while (read_bytes > 0 || zero_bytes > 0)
   {
@@ -528,10 +529,13 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
     /* Load this page. */
     if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
     {
+//      unlock_the_filesys();
       printf("Read failed\n");
       falloc_free_frame (kpage);
       return false;
     }
+//    unlock_the_filesys();
+
     memset (kpage + page_read_bytes, 0, page_zero_bytes);
 
     /* Add the page to the process's address space. */

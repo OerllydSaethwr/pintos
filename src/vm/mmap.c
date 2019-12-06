@@ -72,8 +72,10 @@ void unmap_file(mmapid_t map_id) {
                                            curr_loc);
     if (addr != NULL &&
         pagedir_is_dirty(thread_current()->pagedir, curr_loc)) {
+//      lock_the_filesys();
       file_seek(file, curr_offset);
       file_write(file, curr_loc, read_bytes);
+//      unlock_the_filesys();
     }
 
     if (addr != NULL) {

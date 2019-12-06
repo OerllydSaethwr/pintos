@@ -21,6 +21,8 @@
 typedef unsigned mapid_t;
 void syscall_init (void);
 void kill_process(void);
+void lock_the_filesys(void);
+void unlock_the_filesys(void);
 struct file_descriptor *file_descriptor_finder (int);
 #endif
 /* userprog/syscall.h */

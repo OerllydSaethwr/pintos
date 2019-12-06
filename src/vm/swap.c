@@ -29,7 +29,6 @@ void evict_frame() {
   enum page_type type;
   struct supp_entry *evicted_supp;
   struct frame *frame;
-  retry:
   frame = frame_to_evict();
   if (pagedir_is_dirty(frame->process->pagedir, frame->supp->upage)) {
     frame->supp->dirty = true;
@@ -38,15 +37,12 @@ void evict_frame() {
   type = frame->supp->ptype;
   switch (type){
     case STACK:
-      goto retry;
       evicted_supp = swap_to_swap(frame);
       break;
     case MMAP:
-      goto retry;
       evicted_supp = swap_to_file_or_discard(frame);
       break;
     case EXEC_CODE:
-      goto retry;
       evicted_supp = swap_to_discard(frame);
       break;
     case EXEC_DATA:
@@ -55,9 +51,6 @@ void evict_frame() {
     default:
       PANIC("Shouldn't get here.\n");
   }
-
-  //frame_dump(frame);
-  //supp_dump(frame->supp);
 
   pagedir_clear_page(frame->process->pagedir, frame->supp->upage);
 
@@ -75,7 +68,6 @@ struct supp_entry *swap_to_file_or_discard(struct frame *frame) {
 }
 
 struct supp_entry *swap_to_discard(struct frame *frame) {
-  printf("%p\n", frame->supp->file);
   frame->supp->location = FSYS;
   return frame->supp;
 }
@@ -104,10 +96,12 @@ struct supp_entry *swap_to_swap(struct frame *frame) {
 struct supp_entry *swap_to_file(struct frame *frame) {
   struct supp_entry *supp = frame->supp;
   struct file_descriptor *fd = hash_entry(supp->mapping, struct file_descriptor, thread_hash_elem);
+//  lock_the_filesys();
   file_seek(fd->actual_file, supp->offset);
   file_write(fd->actual_file, supp->upage, supp->read_bytes);
-
   supp->location = FSYS;
+//  unlock_the_filesys();
+
   return supp;
 }
 
@@ -128,7 +122,7 @@ bool load_from_swap(struct supp_entry *supp) {
   }
 
   bitmap_scan_and_flip(swap_table.bitmap, block_index, 1, 1);
-  lock_release(&swap_table_lock);
+  lock_release (&swap_table_lock);
   install_page(supp->upage, frame->kaddr, supp->writeable);
   supp->location = LOADED;
   frame->supp = supp;

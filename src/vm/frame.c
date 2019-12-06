@@ -21,14 +21,12 @@ struct lock circular_list_lock;
 struct list circular;
 void *oldest_entry;
 struct frame *frame_to_evict(void) {
-  return frame_to_evict_safe();
   lock_acquire(&circular_list_lock);
   struct frame *frame = oldest_entry;
   struct list_elem *curr = &frame->list_elem;
 
   while (true) {
     barrier();
-
     if (!pagedir_is_accessed(frame->process->pagedir, frame->supp->upage)) {
       if (curr->next == &circular.tail) {
         oldest_entry = list_entry(list_begin(&circular),
@@ -54,21 +52,6 @@ struct frame *frame_to_evict(void) {
     }
   }
 }
-
-struct frame *frame_to_evict_safe(void) {
-  static uint32_t cnt = 0;
-  static const void *start = (void *) 0xc0271000;
-  struct frame temp;
-  retry:
-  temp.kaddr = (void *) start + ((cnt++) * PGSIZE);
-  struct hash_elem *elem = hash_find (&frame_table, &temp.hash_elem);
-  if (!elem) {
-    cnt = 0;
-    goto retry;
-  }
-  return hash_entry (elem, struct frame, hash_elem);
-}
-
 
 void frame_init(void) {
   hash_init(&frame_table, frame_hash, frame_less_func, NULL);
@@ -97,21 +80,18 @@ static bool frame_less_func(const struct hash_elem *a,
 struct frame *falloc_get_frame(void *upage)
 {
   ASSERT(is_user_vaddr(upage));
-  lock_acquire(&frame_table_lock);
   void *kpage = palloc_get_page(PAL_USER);
 
   retry:
   if (kpage == NULL) {
-    lock_release(&frame_table_lock);
     /* Evict to make space*/
     evict_frame();
-    lock_acquire(&frame_table_lock);
     kpage = palloc_get_page(PAL_USER);
     goto retry;
   }
 
+  lock_acquire(&frame_table_lock);
   struct frame *new = malloc(sizeof(struct frame));
-
   if (new == NULL) {
     PANIC("Out of kernel memory.\n");
   }
@@ -166,7 +146,6 @@ void falloc_free_frame(void *kpage) {
   hash_delete(&frame_table, e);
   free(frame);
   lock_release(&frame_table_lock);
-
 }
 
 void print_hash_entries(struct hash_elem *e, void *aux UNUSED) {

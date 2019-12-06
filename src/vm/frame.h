@@ -1,7 +1,7 @@
+
 #ifndef PINTOS_08_FRAME_H
 #define PINTOS_08_FRAME_H
 #define RESET_ACCESS_BITS 100
-
 #include <hash.h>
 #include "threads/palloc.h"
 

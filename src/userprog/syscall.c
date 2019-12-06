@@ -121,9 +121,9 @@ static void exec (void **argv) {
   const char *cmd_line = *(char **) argv[0];
   int *eax = (int *) argv[1];
   check_string_pointer (cmd_line);
-  lock_acquire(&filesystem_lock);
+  lock_the_filesys ();
   tid_t pid = process_execute (cmd_line);
-  lock_release(&filesystem_lock);
+  unlock_the_filesys();
   *eax = pid;
 }
 
@@ -138,25 +138,25 @@ static void create (void **argv) {
   unsigned initial_size = *(unsigned *) argv[1];
   int *eax = (int *) argv[2];
   check_string_pointer (file);
-  lock_acquire (&filesystem_lock);
+  lock_the_filesys ();
   *eax = filesys_create (file, initial_size);
-  lock_release (&filesystem_lock);
+  unlock_the_filesys ();
 }
 
 static void remove (void **argv) {
   const char *file = *(const char **) argv[0];
   int *eax = (int *) argv[1];
   check_string_pointer (file);
-  lock_acquire (&filesystem_lock);
+  lock_the_filesys ();
   *eax = filesys_remove (file);
-  lock_release (&filesystem_lock);
+  unlock_the_filesys ();
 }
 
 static void open (void **argv) {
   const char *file = *(const char **) argv[0];
   int *eax = (int *) argv[1];
   check_string_pointer (file);
-  lock_acquire (&filesystem_lock);
+  lock_the_filesys ();
   struct file *opened_file = filesys_open (file);
   /* Allocate memory for new file_discriptor struct and add pointer to it to
    * HashTable*/
@@ -175,7 +175,7 @@ static void open (void **argv) {
     invalid:
     *eax = INVALID;
   }
-  lock_release (&filesystem_lock);
+  unlock_the_filesys ();
 }
 
 static void filesize (void **argv) {
@@ -183,7 +183,7 @@ static void filesize (void **argv) {
   int *eax = (int *) argv[1];
   /* -1 if file can not be opened*/
   int size_of_file = INVALID;
-  lock_acquire (&filesystem_lock);
+  lock_the_filesys ();
 
   /* Lookup file descriptor in HashTable and calculate size if file exists*/
   struct file_descriptor *file_desc = file_descriptor_finder (fd);
@@ -191,7 +191,7 @@ static void filesize (void **argv) {
     size_of_file = file_length (file_desc->actual_file);
   }
 
-  lock_release (&filesystem_lock);
+  unlock_the_filesys ();
   *eax = size_of_file;
 }
 
@@ -204,7 +204,7 @@ static void read (void **argv) {
 
   /* -1 if file can not be opened*/
   off_t read_bytes = INVALID;
-  lock_acquire (&filesystem_lock);
+  lock_the_filesys ();
 
   /* Read into buffer from STDIN */
   if (fd == STDIN_FILENO) {
@@ -220,7 +220,7 @@ static void read (void **argv) {
       read_bytes = file_read (file_desc->actual_file, buffer, size);
     }
   }
-  lock_release (&filesystem_lock);
+  unlock_the_filesys ();
   *eax = read_bytes;
 }
 
@@ -233,7 +233,7 @@ static void write (void **argv) {
   check_pointer ((void *) buffer, false);
 
   int bytes_written = 0;
-  lock_acquire (&filesystem_lock);
+  lock_the_filesys ();
 
   /* Write out into STDOUT*/
   if (fd == STDOUT_FILENO) {
@@ -246,28 +246,28 @@ static void write (void **argv) {
       bytes_written = file_write (file_desc->actual_file, buffer, size);
     }
   }
-  lock_release (&filesystem_lock);
+  unlock_the_filesys ();
   *eax = bytes_written;
 }
 
 static void seek (void **argv) {
   int fd = *(int *) argv[0];
   off_t position = *(off_t *) argv[1];
-  lock_acquire (&filesystem_lock);
+  lock_the_filesys ();
 
   /* Lookup file descriptor in HashTable & seek to position if file exists*/
   struct file_descriptor *file_desc = file_descriptor_finder (fd);
   if (file_desc != NULL && file_desc->actual_file != NULL) {
     file_seek (file_desc->actual_file, position);
   }
-  lock_release (&filesystem_lock);
+  unlock_the_filesys ();
 }
 
 static void tell (void **argv) {
   int fd = *(int *) argv[0];
   int *eax = (int *) argv[1];
   off_t new_position = INVALID;
-  lock_acquire (&filesystem_lock);
+  lock_the_filesys ();
 
   /* Lookup file descriptor in HashTable and  return current position if file
    * exists*/
@@ -275,13 +275,13 @@ static void tell (void **argv) {
   if (file_desc != NULL && file_desc->actual_file != NULL) {
     new_position = file_tell (file_desc->actual_file);
   }
-  lock_release (&filesystem_lock);
+  unlock_the_filesys ();
   *eax = new_position;
 }
 
 static void close (void **argv) {
   int fd = *(int *) argv[0];
-  lock_acquire (&filesystem_lock);
+  lock_the_filesys ();
 
   /* Find file in HashTable and if it exsists close it, remove it from the
    * table and free memory */
@@ -295,7 +295,7 @@ static void close (void **argv) {
     /* Free previously malloced memory for file */
     free (file_desc);
   }
-  lock_release (&filesystem_lock);
+  unlock_the_filesys();
 }
 
 static void mmap (void **argv) {
@@ -372,4 +372,12 @@ struct file_descriptor *file_descriptor_finder (int fd) {
   }
 
   return NULL;
+}
+void lock_the_filesys(void){
+  lock_acquire(&filesystem_lock);
+}
+
+
+void unlock_the_filesys(void){
+  lock_release(&filesystem_lock);
 }
