@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <threads/synch.h>
+#include "threads/synch.h"
 #include <vm/mmap.h>
 #include <vm/utils.h>
 #include "vm/frame.h"
@@ -26,6 +26,7 @@
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 struct lock file_lock;
+extern struct semaphore eviction_sema;
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
@@ -551,6 +552,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 
 bool load_segment_lazy (struct supp_entry *supp) {
   ASSERT(supp->file != NULL);
+  //sema_down(&eviction_sema);
   bool success = load_segment(supp->file, supp->offset, supp->upage, supp->read_bytes, PGSIZE - supp->read_bytes, supp->writeable);
 
   /* Updating status of supp_entry. */
@@ -563,7 +565,7 @@ bool load_segment_lazy (struct supp_entry *supp) {
   ASSERT(e);
   struct frame *frame = hash_entry(e, struct frame, hash_elem);
   frame->supp = supp;
-
+  //sema_up(&eviction_sema);
   return success;
 }
 
@@ -620,6 +622,7 @@ bool create_fake_single(void *upage,
   supp->writeable = writable;
   supp->ptype = ptype;
   supp->mapping = mapping;
+  sema_init(&supp->eviction_sema, 0);
 
   pagedir_set_page(thread_current()->pagedir, upage, supp, NULL, FAKE);
   return true;
@@ -647,6 +650,7 @@ setup_stack (void **esp)
   supp->ptype = STACK;
   supp->read_bytes = PGSIZE;
   supp->upage = ((uint8_t *) PHYS_BASE) - PGSIZE;
+  sema_init(&supp->eviction_sema, 0);
   frame->supp = supp;
 
   if (kpage != NULL) 

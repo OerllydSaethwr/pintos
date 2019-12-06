@@ -18,18 +18,6 @@ bool is_stack_access(const void *ptr, void *esp)
          && (ptr >= esp || ptr == esp - 4 || ptr == esp - 32);
 }
 
-void allocate_stack_page(void *upage) {
-  struct supp_entry *supp = malloc(sizeof(supp));
-  if (!supp)
-    PANIC("Failed to allocate memory for supp entry for stack frame.\n");
-  supp->location = LOADED;
-  supp->writeable = true;
-  supp->ptype = STACK;
-
-  void *kernel_address = falloc_get_frame(upage)->kaddr;
-  install_page (upage, kernel_address, supp->writeable);
-}
-
 void supp_dump(struct supp_entry *supp) {
   char *buf[] = {"STACK", "MMAP", "EXEC_CODE", "EXEC_DATA"};
   char *buf1[] = {"SWAP", "FSYS", "LOADED"};

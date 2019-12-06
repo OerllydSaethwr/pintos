@@ -1,6 +1,7 @@
 #include <kernel/hash.h>
 #include <kernel/list.h>
 #include <stdio.h>
+#include "userprog/process.h"
 #include "threads/palloc.h"
 #include "threads/vaddr.h"
 #include "threads/malloc.h"
@@ -17,6 +18,7 @@ static bool frame_less_func(const struct hash_elem *,
 struct hash frame_table;
 struct lock frame_table_lock;
 struct lock circular_list_lock;
+struct semaphore eviction_sema;
 
 struct list circular;
 void *oldest_entry;
@@ -75,6 +77,7 @@ void frame_init(void) {
   lock_init(&frame_table_lock);
   lock_init(&circular_list_lock);
   list_init(&circular);
+  sema_init(&eviction_sema, 1);
 }
 
 static unsigned frame_hash(const struct hash_elem *e, void *aux UNUSED) {
@@ -97,18 +100,18 @@ static bool frame_less_func(const struct hash_elem *a,
 struct frame *falloc_get_frame(void *upage)
 {
   ASSERT(is_user_vaddr(upage));
-  lock_acquire(&frame_table_lock);
   void *kpage = palloc_get_page(PAL_USER);
 
   retry:
   if (kpage == NULL) {
-    lock_release(&frame_table_lock);
     /* Evict to make space*/
+    sema_down(&eviction_sema);
     evict_frame();
-    lock_acquire(&frame_table_lock);
     kpage = palloc_get_page(PAL_USER);
     goto retry;
   }
+
+  lock_acquire(&frame_table_lock);
 
   struct frame *new = malloc(sizeof(struct frame));
 
@@ -172,5 +175,21 @@ void falloc_free_frame(void *kpage) {
 void print_hash_entries(struct hash_elem *e, void *aux UNUSED) {
   struct frame *frame = hash_entry(e, struct frame, hash_elem);
   printf("Frame has kaddr %p\n", frame->kaddr);
+}
+
+void allocate_stack_page(void *upage) {
+  struct supp_entry *supp = malloc(sizeof(struct supp_entry));
+  if (!supp)
+    PANIC("Failed to allocate memory for supp entry for stack frame.\n");
+  supp->location = LOADED;
+  supp->writeable = true;
+  supp->ptype = STACK;
+  supp->upage = upage;
+  supp->read_bytes = PGSIZE;
+  sema_init(&supp->eviction_sema, 0);
+
+  struct frame *frame = falloc_get_frame(upage);
+  frame->supp = supp;
+  install_page (upage, frame->kaddr, supp->writeable);
 }
 

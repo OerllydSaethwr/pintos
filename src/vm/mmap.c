@@ -39,6 +39,10 @@ mmapid_t mmap_segment(struct file *file, off_t segment_offset, uint32_t read_byt
   struct file *mmap_instance = file_reopen(file);
   struct file_descriptor *fd = malloc(sizeof(struct file_descriptor));
 
+  if (!fd) {
+    PANIC("Failed to allocate memory for file descriptor.\n");
+  }
+
   fd->actual_file = mmap_instance;
   fd->descriptor = ++(thread_current ()->curr_file_descriptor);
   fd->upage = upage_start;
