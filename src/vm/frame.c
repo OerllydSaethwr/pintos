@@ -1,6 +1,7 @@
 #include <kernel/hash.h>
 #include <kernel/list.h>
 #include <stdio.h>
+#include "threads/interrupt.h"
 #include "userprog/process.h"
 #include "threads/palloc.h"
 #include "threads/vaddr.h"
@@ -23,38 +24,24 @@ struct semaphore eviction_sema;
 struct list circular;
 void *oldest_entry;
 struct frame *frame_to_evict(void) {
-  return frame_to_evict_safe();
+//  return frame_to_evict_safe();
   lock_acquire(&circular_list_lock);
-  struct frame *frame = oldest_entry;
-  struct list_elem *curr = &frame->list_elem;
+  struct list_elem *e = list_pop_front(&circular);
+  struct frame *curr = list_entry(list_pop_front(&circular), struct frame, list_elem);
 
+  //return curr;
   while (true) {
-    barrier();
-
-    if (!pagedir_is_accessed(frame->process->pagedir, frame->supp->upage)) {
-      if (curr->next == &circular.tail) {
-        oldest_entry = list_entry(list_begin(&circular),
-                                                struct frame, list_elem);
-      } else {
-        oldest_entry = list_entry(list_next(curr), struct frame,
-                                                list_elem);
-      }
-      list_remove(&frame->list_elem);
-      lock_release (&circular_list_lock);
-      return frame;
-
+    if (!pagedir_is_accessed(curr->process->pagedir, curr->supp->upage) && !curr->supp->pinned) {
+      lock_release(&circular_list_lock);
+      return curr;
     } else {
-      pagedir_set_accessed(frame->process->pagedir, frame->supp->upage, 0);
+      pagedir_set_accessed(curr->process->pagedir, curr->supp->upage, 0);
     }
-
-    curr = curr->next;
-    if (curr == &circular.tail) {
-      frame = list_entry(list_front(&circular), struct frame, list_elem);
-      curr = list_front(&circular);
-    } else {
-      frame = list_entry(curr, struct frame, list_elem);
-    }
+    list_push_back(&circular, e);
+    e = list_pop_front(&circular);
+    curr = list_entry(e, struct frame, list_elem);
   }
+
 }
 
 struct frame *frame_to_evict_safe(void) {
@@ -100,7 +87,9 @@ static bool frame_less_func(const struct hash_elem *a,
 struct frame *falloc_get_frame(void *upage)
 {
   ASSERT(is_user_vaddr(upage));
+  sema_down(&eviction_sema);
   void *kpage = palloc_get_page(PAL_USER);
+  sema_up(&eviction_sema);
 
   while (kpage == NULL) {
     /* Evict to make space*/
@@ -118,10 +107,15 @@ struct frame *falloc_get_frame(void *upage)
   }
   lock_acquire(&circular_list_lock);
 
-  list_push_front(&circular, &(new->list_elem));
-  if (list_size(&circular) == 1) {
-    oldest_entry = new;
-  }
+//  list_push_front(&circular, &(new->list_elem));
+//  if (list_size(&circular) == 1) {
+//    oldest_entry = new;
+//  }
+
+  pagedir_set_accessed(thread_current()->pagedir, upage, 0);
+
+
+  list_push_back(&circular, &(new->list_elem));
   lock_release(&circular_list_lock);
 
   new->process = thread_current();
