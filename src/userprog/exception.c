@@ -183,11 +183,9 @@ page_fault (struct intr_frame *f) {
     } else if (is_stack_access (fault_addr, esp)) {
       allocate_stack_page(up_address);
     } else {
-//      printf("fall through\n");
       goto die;
     }
   } else {
-//    printf("not user\n");
     die:
     printf ("Page fault at %p: %s error %s page in %s context.\n",
             fault_addr,

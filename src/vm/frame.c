@@ -115,11 +115,13 @@ struct frame *falloc_get_frame(void *upage)
   if (new == NULL) {
     PANIC("Out of kernel memory.\n");
   }
+  lock_acquire(&circular_list_lock);
 
   list_push_front(&circular, &(new->list_elem));
   if (list_size(&circular) == 1) {
     oldest_entry = new;
   }
+  lock_release(&circular_list_lock);
 
   new->process = thread_current();
   new->kaddr = kpage;

@@ -122,7 +122,6 @@ bool load_from_swap(struct supp_entry *supp) {
 
   size_t block_index = (size_t) supp->file;
 
-  //block_read(swap_table.block_device, (block_sector_t) block_index * 8 + 1, frame->kaddr);
   lock_acquire(&swap_table_lock);
   for (uint32_t i = 0; i < PGSIZE; i += BLOCK_SECTOR_SIZE) {
     block_read(swap_table.block_device, (block_sector_t) block_index * 8 + i / BLOCK_SECTOR_SIZE, frame->kaddr + i);
