@@ -32,25 +32,25 @@ void evict_frame() {
   enum page_type type;
   struct supp_entry *evicted_supp;
   struct frame *frame;
-  retry:
   frame = frame_to_evict();
   if (pagedir_is_dirty(frame->process->pagedir, frame->supp->upage)) {
     frame->supp->dirty = true;
   }
 
+  pagedir_clear_page(frame->process->pagedir, frame->supp->upage);
+  pagedir_set_page (frame->process->pagedir, frame->supp->upage, frame->supp,
+                    frame->supp->writeable, FAKE);
+
   ASSERT(frame->supp);
   type = frame->supp->ptype;
   switch (type){
     case STACK:
-//      goto retry;
       evicted_supp = swap_to_swap(frame);
       break;
     case MMAP:
-//      goto retry;
       evicted_supp = swap_to_file_or_discard(frame);
       break;
     case EXEC_CODE:
-//      goto retry;
       evicted_supp = swap_to_discard(frame);
       break;
     case EXEC_DATA:
@@ -59,9 +59,6 @@ void evict_frame() {
     default:
       PANIC("Shouldn't get here.\n");
   }
-  pagedir_clear_page(frame->process->pagedir, frame->supp->upage);
-  pagedir_set_page (frame->process->pagedir, frame->supp->upage, frame->supp,
-                    frame->supp->writeable, FAKE);
 
   falloc_free_frame(frame->kaddr);
   sema_up(&eviction_sema);
@@ -82,7 +79,6 @@ struct supp_entry *swap_to_discard(struct frame *frame) {
 }
 
 struct supp_entry *swap_to_swap(struct frame *frame) {
-  uint32_t *kaddr = frame->kaddr;
   struct supp_entry *supp = frame->supp;
   lock_acquire(&swap_table_lock);
   size_t free_sector = find_free_sector();

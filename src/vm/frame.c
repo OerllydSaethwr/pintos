@@ -186,7 +186,7 @@ void allocate_stack_page(void *upage) {
   supp->ptype = STACK;
   supp->upage = upage;
   supp->read_bytes = PGSIZE;
-  sema_init(&supp->eviction_sema, 0);
+  sema_init(&supp->eviction_sema, 1);
 
   struct frame *frame = falloc_get_frame(upage);
   frame->supp = supp;

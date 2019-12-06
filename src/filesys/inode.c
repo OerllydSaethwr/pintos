@@ -3,6 +3,7 @@
 #include <debug.h>
 #include <round.h>
 #include <string.h>
+#include "threads/vaddr.h"
 #include "filesys/filesys.h"
 #include "filesys/free-map.h"
 #include "threads/malloc.h"
@@ -200,10 +201,14 @@ inode_remove (struct inode *inode)
 off_t
 inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset) 
 {
-  uint8_t *buffer = buffer_;
+  uint8_t *dst_buffer = buffer_;
   off_t bytes_read = 0;
+  off_t total_bytes_read = 0;
   uint8_t *bounce = NULL;
 
+  unsigned sector_cnt = 0;
+  unsigned page_cnt = 0;
+  uint8_t *buffer = malloc(PGSIZE);
   while (size > 0) 
     {
       /* Disk sector to read, starting byte offset within sector. */
@@ -243,10 +248,22 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
       size -= chunk_size;
       offset += chunk_size;
       bytes_read += chunk_size;
+      total_bytes_read += chunk_size;
+      if (++sector_cnt % (PGSIZE / BLOCK_SECTOR_SIZE) == 0) {
+        memcpy(dst_buffer + page_cnt * PGSIZE, buffer, bytes_read);
+        bytes_read = 0;
+        page_cnt++;
+      }
     }
-  free (bounce);
 
-  return bytes_read;
+  /* Copy in bits that still stick out */
+  if (sector_cnt % (PGSIZE / BLOCK_SECTOR_SIZE) != 0) {
+    memcpy(dst_buffer + page_cnt * PGSIZE, buffer, bytes_read);
+  }
+  free (bounce);
+  free(buffer);
+
+  return total_bytes_read;
 }
 
 /* Writes SIZE bytes from BUFFER into INODE, starting at OFFSET.

@@ -171,6 +171,7 @@ page_fault (struct intr_frame *f) {
       }
     } else if (supp_entry != NULL) {
       retry:
+      sema_down(&supp_entry->eviction_sema);
       switch (supp_entry->location) {
         case SWAP:
           load_from_swap(supp_entry);
@@ -179,7 +180,6 @@ page_fault (struct intr_frame *f) {
           load_segment_lazy(supp_entry);
           break;
         default:
-          sema_down(&supp_entry->eviction_sema);
           goto retry;
       }
     } else if (is_stack_access (fault_addr, esp)) {

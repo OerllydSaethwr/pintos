@@ -622,7 +622,8 @@ bool create_fake_single(void *upage,
   supp->writeable = writable;
   supp->ptype = ptype;
   supp->mapping = mapping;
-  sema_init(&supp->eviction_sema, 0);
+  sema_init(&supp->eviction_sema, 1);
+
 
   pagedir_set_page(thread_current()->pagedir, upage, supp, NULL, FAKE);
   return true;
@@ -650,7 +651,7 @@ setup_stack (void **esp)
   supp->ptype = STACK;
   supp->read_bytes = PGSIZE;
   supp->upage = ((uint8_t *) PHYS_BASE) - PGSIZE;
-  sema_init(&supp->eviction_sema, 0);
+  sema_init(&supp->eviction_sema, 1);
   frame->supp = supp;
 
   if (kpage != NULL) 
