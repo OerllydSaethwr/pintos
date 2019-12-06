@@ -15,10 +15,13 @@ static bool frame_less_func(const struct hash_elem *,
                             void *);
 
 struct hash frame_table;
-struct lock frame_lock;
+struct lock frame_table_lock;
+struct lock circular_list_lock;
+
 struct list circular;
 void *oldest_entry;
 struct frame *frame_to_evict(void) {
+  lock_acquire(&circular_list_lock);
   struct frame *frame = oldest_entry;
   struct list_elem *curr = &frame->list_elem;
 
@@ -33,6 +36,8 @@ struct frame *frame_to_evict(void) {
         oldest_entry = list_entry(list_next(curr), struct frame,
                                                 list_elem);
       }
+      list_remove(&frame->list_elem);
+      lock_release (&circular_list_lock);
       return frame;
 
     } else {
@@ -51,7 +56,8 @@ struct frame *frame_to_evict(void) {
 
 void frame_init(void) {
   hash_init(&frame_table, frame_hash, frame_less_func, NULL);
-  lock_init(&frame_lock);
+  lock_init(&frame_table_lock);
+  lock_init(&circular_list_lock);
   list_init(&circular);
 }
 
@@ -75,15 +81,16 @@ static bool frame_less_func(const struct hash_elem *a,
 struct frame *falloc_get_frame(void *upage)
 {
   ASSERT(is_user_vaddr(upage));
-  lock_acquire(&frame_lock);
+  lock_acquire(&frame_table_lock);
   void *kpage = palloc_get_page(PAL_USER);
+
 
   retry:
   if (kpage == NULL) {
-    lock_release(&frame_lock);
+    lock_release(&frame_table_lock);
     /* Evict to make space*/
     evict_frame(frame_to_evict());
-    lock_acquire(&frame_lock);
+    lock_acquire(&frame_table_lock);
     kpage = palloc_get_page(PAL_USER);
     goto retry;
   }
@@ -102,7 +109,7 @@ struct frame *falloc_get_frame(void *upage)
   new->process = thread_current();
   new->kaddr = kpage;
   struct hash_elem *success = hash_insert(&frame_table, &new->hash_elem);
-  lock_release (&frame_lock);
+  lock_release (&frame_table_lock);
 
   if (success != NULL) {
     PANIC("Attempting to insert already existing entry into frame table.\n");
@@ -116,7 +123,7 @@ void falloc_free_frame(void *kpage) {
   struct frame temp;
 
   temp.kaddr = kpage;
-  lock_acquire(&frame_lock);
+  lock_acquire(&frame_table_lock);
 
   struct hash_elem *e = hash_find(&frame_table, &temp.hash_elem);
   if (!e) {
@@ -125,6 +132,7 @@ void falloc_free_frame(void *kpage) {
 
   ASSERT(temp.kaddr == hash_entry(e, struct frame, hash_elem)->kaddr);
   struct frame *frame = hash_entry(e, struct frame, hash_elem);
+  lock_acquire(&circular_list_lock);
   if (oldest_entry == frame) {
     if (list_next(&frame->list_elem) == NULL) {
       oldest_entry = list_entry(list_front(&circular),
@@ -136,11 +144,11 @@ void falloc_free_frame(void *kpage) {
     }
   }
   list_remove(&frame->list_elem);
-
+  lock_release (&circular_list_lock);
   palloc_free_page(frame->kaddr);
   hash_delete(&frame_table, e);
   free(frame);
-  lock_release(&frame_lock);
+  lock_release(&frame_table_lock);
 
 }
 

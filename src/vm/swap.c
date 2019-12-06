@@ -16,16 +16,16 @@
 struct swap_table swap_table;
 
 static inline size_t find_free_sector(void);
-
+struct lock swap_table_lock;
 
 void swap_init() {
+  lock_init(&swap_table_lock);
   struct block *swap_device = block_get_role(BLOCK_SWAP);
   swap_table.bitmap = bitmap_create(block_size(swap_device) / 8);
   swap_table.block_device = swap_device;
 }
 
 void evict_frame(struct frame *frame) {
-  list_remove(&frame->list_elem);
   enum page_type type;
   struct supp_entry *evicted_supp;
   retry:
@@ -80,6 +80,7 @@ struct supp_entry *swap_to_discard(struct frame *frame) {
 struct supp_entry *swap_to_swap(struct frame *frame) {
   uint32_t *kaddr = frame->kaddr;
   struct supp_entry *supp = frame->supp;
+  lock_acquire(&swap_table_lock);
   size_t free_sector = find_free_sector();
   if (free_sector == BITMAP_ERROR) {
     PANIC("Swap is full.\n");
@@ -89,6 +90,7 @@ struct supp_entry *swap_to_swap(struct frame *frame) {
     //char buffer[BLOCK_SECTOR_SIZE];
     block_write(swap_table.block_device, (block_sector_t) free_sector * 8 + (i / BLOCK_SECTOR_SIZE), supp->upage + i);
   }
+  lock_release(&swap_table_lock);
 
   supp->location = SWAP;
   supp->file = (struct file *) free_sector;
@@ -118,13 +120,13 @@ bool load_from_swap(struct supp_entry *supp) {
   size_t block_index = (size_t) supp->file;
 
   //block_read(swap_table.block_device, (block_sector_t) block_index * 8 + 1, frame->kaddr);
-
+lock_acquire(&swap_table_lock);
   for (uint32_t i = 0; i < PGSIZE; i += BLOCK_SECTOR_SIZE) {
     block_read(swap_table.block_device, (block_sector_t) block_index * 8 + i / BLOCK_SECTOR_SIZE, frame->kaddr + i);
   }
 
   bitmap_scan_and_flip(swap_table.bitmap, block_index, 1, 1);
-
+lock_release(&swap_table_lock);
   install_page(supp->upage, frame->kaddr, supp->writeable);
   supp->location = LOADED;
   frame->supp = supp;
