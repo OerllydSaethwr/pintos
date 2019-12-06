@@ -14,6 +14,8 @@
 static mapid_t allocate_map_id(void);
 static bool overlapping_mapped_mem(uint32_t file_size, void *upage);
 
+extern struct semaphore eviction_sema;
+
 static mapid_t allocate_map_id(void) {
   if(thread_current()->mmap_id == 0) {
     thread_current()->mmap_id = MAPID_START;
@@ -61,6 +63,7 @@ void unmap_file_with_remove_hash(mmapid_t mapid) {
 }
 
 void unmap_file(mmapid_t map_id) {
+  sema_down(&eviction_sema);
   off_t curr_offset = 0;
 
   struct file_descriptor *fd = hash_entry(map_id, struct file_descriptor, thread_hash_elem);
@@ -89,6 +92,7 @@ void unmap_file(mmapid_t map_id) {
   }
 
   file_close(file);
+  sema_up(&eviction_sema);
 }
 
 static bool overlapping_mapped_mem(uint32_t file_size, void *upage) {

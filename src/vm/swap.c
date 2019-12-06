@@ -128,7 +128,6 @@ bool load_from_swap(struct supp_entry *supp) {
   install_page(supp->upage, frame->kaddr, supp->writeable);
   supp->location = LOADED;
   frame->supp = supp;
-
   return true;
 }
 

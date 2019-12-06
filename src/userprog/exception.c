@@ -20,6 +20,8 @@ static long long page_fault_cnt;
 static void kill (struct intr_frame *);
 static void page_fault (struct intr_frame *);
 
+extern struct semaphore eviction_sema;
+
 /* Registers handlers for interrupts that can be caused by user
    programs.
 
@@ -180,6 +182,9 @@ page_fault (struct intr_frame *f) {
           load_segment_lazy(supp_entry);
           break;
         default:
+          /* Probably attempting to fault in a page that's being evicted,
+           * in theory shouldn't ever get here but if we do just simply
+           * try to down the sema again. */
           goto retry;
       }
     } else if (is_stack_access (fault_addr, esp)) {
