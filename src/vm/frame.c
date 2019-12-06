@@ -25,16 +25,17 @@ struct frame *frame_to_evict(void) {
   struct frame *frame = oldest_entry;
   struct list_elem *curr = &frame->list_elem;
 
+  if (curr->next == &circular.tail) {
+    oldest_entry = list_entry(list_begin(&circular),
+                              struct frame, list_elem);
+  } else {
+    oldest_entry = list_entry(list_next(curr), struct frame,
+                              list_elem);
+  }
+
   while (true) {
-    barrier();
+//    barrier();
     if (!pagedir_is_accessed(frame->process->pagedir, frame->supp->upage)) {
-      if (curr->next == &circular.tail) {
-        oldest_entry = list_entry(list_begin(&circular),
-                                                struct frame, list_elem);
-      } else {
-        oldest_entry = list_entry(list_next(curr), struct frame,
-                                                list_elem);
-      }
       list_remove(&frame->list_elem);
       lock_release (&circular_list_lock);
       return frame;
